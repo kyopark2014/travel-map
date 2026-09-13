@@ -88,6 +88,15 @@ const translateKojaClose = document.getElementById('translate-koja-close');
 const translateKojaRecord = document.getElementById('translate-koja-record');
 const translateKojaStatus = document.getElementById('translate-koja-status');
 const translateKojaLog = document.getElementById('translate-koja-log');
+const translateKojaModeMic = document.getElementById('translate-koja-mode-mic');
+const translateKojaModeKeyboard = document.getElementById(
+  'translate-koja-mode-keyboard',
+);
+const translateKojaHint = document.getElementById('translate-koja-hint');
+const translateKojaMicWrap = document.getElementById('translate-koja-mic-wrap');
+const translateKojaKeyboard = document.getElementById('translate-koja-keyboard');
+const translateKojaInput = document.getElementById('translate-koja-input');
+const translateKojaSubmit = document.getElementById('translate-koja-submit');
 const btnResetNorth = document.getElementById('btn-reset-north');
 const btnZoomIn = document.getElementById('btn-zoom-in');
 const btnZoomOut = document.getElementById('btn-zoom-out');
@@ -204,6 +213,7 @@ function setSidePanel(panel) {
   }
   if (next === 'translate-koja') {
     activeTranslateDirection = 'ko2ja';
+    setKojaInputMode(kojaInputMode);
     loadTranslateHistory('ko2ja').catch((err) => console.error(err));
   }
   if (next === 'place') {
@@ -397,6 +407,8 @@ translateKojaClose?.addEventListener('click', () => {
 const TRANSLATE_SEGMENT_MS = 6000;
 /** @type {'ja2ko' | 'ko2ja'} */
 let activeTranslateDirection = 'ja2ko';
+/** @type {'mic' | 'keyboard'} */
+let kojaInputMode = 'mic';
 let translateMediaStream = null;
 let translateRecorder = null;
 let translateChunks = [];
@@ -988,6 +1000,7 @@ let kojaPointerId = null;
 let kojaHoldActive = false;
 
 async function startKojaPushToTalk(event) {
+  if (kojaInputMode !== 'mic') return;
   if (translateBusy || kojaHoldActive) return;
   if (event.pointerType === 'mouse' && event.button !== 0) return;
   activeTranslateDirection = 'ko2ja';
@@ -1197,6 +1210,7 @@ translateRecord?.addEventListener('click', () => {
 if (translateKojaRecord) {
   translateKojaRecord.classList.add('hold-mode');
   translateKojaRecord.addEventListener('pointerdown', (e) => {
+    if (kojaInputMode !== 'mic') return;
     e.preventDefault();
     startKojaPushToTalk(e).catch((err) => {
       console.error(err);
@@ -1204,6 +1218,7 @@ if (translateKojaRecord) {
     });
   });
   translateKojaRecord.addEventListener('pointerup', (e) => {
+    if (kojaInputMode !== 'mic') return;
     e.preventDefault();
     endKojaPushToTalk(e).catch((err) => console.error(err));
   });
@@ -1215,6 +1230,133 @@ if (translateKojaRecord) {
   });
   translateKojaRecord.addEventListener('contextmenu', (e) => e.preventDefault());
 }
+
+function setKojaInputMode(mode) {
+  kojaInputMode = mode === 'keyboard' ? 'keyboard' : 'mic';
+  const isMic = kojaInputMode === 'mic';
+
+  translateKojaModeMic?.classList.toggle('active', isMic);
+  translateKojaModeKeyboard?.classList.toggle('active', !isMic);
+  translateKojaModeMic?.setAttribute('aria-pressed', isMic ? 'true' : 'false');
+  translateKojaModeKeyboard?.setAttribute(
+    'aria-pressed',
+    isMic ? 'false' : 'true',
+  );
+
+  if (translateKojaMicWrap) translateKojaMicWrap.hidden = !isMic;
+  if (translateKojaKeyboard) translateKojaKeyboard.hidden = isMic;
+
+  if (translateKojaHint) {
+    translateKojaHint.innerHTML = isMic
+      ? '마이크를 <strong>누르고 있는 동안</strong>만 한국어를 듣습니다. 손을 떼면 일본어로 번역하고, 스피커로 들을 수 있습니다.'
+      : '한국어를 입력한 뒤 <strong>번역</strong>을 누르면 일본어와 발음이 표시됩니다. 스피커로 들을 수 있습니다.';
+  }
+
+  if (!isMic) {
+    kojaHoldActive = false;
+    kojaPointerId = null;
+    translateListening = false;
+    stopTranslateRecording({ silent: true, releaseStream: true }).catch(() => {});
+    setTranslateStatus('한국어를 입력한 뒤 번역을 누르세요.', 'ko2ja');
+    queueMicrotask(() => translateKojaInput?.focus());
+  } else {
+    setTranslateStatus('마이크를 누른 채 말하고, 떼면 번역됩니다.', 'ko2ja');
+  }
+}
+
+async function submitKojaKeyboardText() {
+  const text = String(translateKojaInput?.value || '').trim();
+  if (!text) {
+    setTranslateStatus('번역할 한국어를 입력해 주세요.', 'ko2ja');
+    translateKojaInput?.focus();
+    return;
+  }
+  if (translateBusy) return;
+
+  const cfg = window.APP_CONFIG || {};
+  const url =
+    cfg.apiTranscribeUrl ||
+    (cfg.apiGatewayUrl
+      ? `${String(cfg.apiGatewayUrl).replace(/\/$/, '')}/transcribe`
+      : '');
+  if (!url) {
+    setTranslateStatus(
+      '변환 API가 없습니다. installer로 배포한 뒤 이용해 주세요.',
+      'ko2ja',
+    );
+    return;
+  }
+
+  translateBusy = true;
+  activeTranslateDirection = 'ko2ja';
+  if (translateKojaSubmit) translateKojaSubmit.disabled = true;
+  setTranslateStatus('일본어·발음으로 번역 중…', 'ko2ja');
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        direction: 'ko2ja',
+        text,
+        language: 'ko',
+        targetLanguage: 'ja',
+        inputMode: 'keyboard',
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setTranslateStatus(
+        data.detail || data.error || `변환 실패 (HTTP ${res.status})`,
+        'ko2ja',
+      );
+      return;
+    }
+
+    const korean = (data.korean || text).trim();
+    const japanese = (data.japanese || data.text || '').trim();
+    const pronunciation = (data.pronunciation || '').trim();
+    if (korean || japanese) {
+      await saveAndShowTranslation({
+        direction: 'ko2ja',
+        korean,
+        japanese,
+        pronunciation,
+        modelId: data.modelId,
+      });
+      if (translateKojaInput) translateKojaInput.value = '';
+      setTranslateStatus(
+        '번역 완료. 스피커 버튼을 눌러 일본어를 들으세요.',
+        'ko2ja',
+      );
+    } else {
+      setTranslateStatus('번역 결과가 비어 있습니다.', 'ko2ja');
+    }
+  } catch (err) {
+    console.error(err);
+    setTranslateStatus('번역 중 오류가 발생했습니다.', 'ko2ja');
+  } finally {
+    translateBusy = false;
+    if (translateKojaSubmit) translateKojaSubmit.disabled = false;
+    translateKojaInput?.focus();
+  }
+}
+
+translateKojaModeMic?.addEventListener('click', () => {
+  setKojaInputMode('mic');
+});
+translateKojaModeKeyboard?.addEventListener('click', () => {
+  setKojaInputMode('keyboard');
+});
+translateKojaKeyboard?.addEventListener('submit', (e) => {
+  e.preventDefault();
+  submitKojaKeyboardText().catch((err) => console.error(err));
+});
+translateKojaInput?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    e.preventDefault();
+    submitKojaKeyboardText().catch((err) => console.error(err));
+  }
+});
 
 placePhotoClose?.addEventListener('click', () => {
   hidePlacePhotoCard();

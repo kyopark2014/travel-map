@@ -240,6 +240,26 @@ def _parse_ja_and_pronunciation(text: str) -> Tuple[str, str]:
     return japanese, pronunciation
 
 
+def _translate_ko_to_ja(korean: str) -> Tuple[str, str]:
+    """Korean text → Japanese + Hangul pronunciation."""
+    value = _clean_model_text(korean)
+    if not value:
+        return "", ""
+    translate_prompt = (
+        "다음 한국어를 자연스러운 일본어로 번역하고, "
+        "그 일본어를 한국인이 소리 내어 읽기 쉬운 한글 발음으로도 적으세요.\n"
+        "한자·가나 병기 없이 일본어 문장과 한글 발음만.\n"
+        "아래 두 줄 형식만 출력하세요 (앞말·따옴표·설명 금지).\n"
+        "JA: <일본어 번역>\n"
+        "발음: <한글 발음>\n\n"
+        f"{value}"
+    )
+    raw = _converse_text(translate_prompt, temperature=0.2)
+    japanese, pronunciation = _parse_ja_and_pronunciation(raw)
+    logger.info("ko2ja ja=%s pron=%s", japanese[:200], pronunciation[:200])
+    return japanese, pronunciation
+
+
 def _speech_ko_then_ja(
     audio_bytes: bytes, audio_format: str
 ) -> Tuple[str, str, str, str]:
@@ -254,18 +274,7 @@ def _speech_ko_then_ja(
     if not korean:
         return "", "", "", VOXTRAL_MODEL_ID
 
-    translate_prompt = (
-        "다음 한국어를 자연스러운 일본어로 번역하고, "
-        "그 일본어를 한국인이 소리 내어 읽기 쉬운 한글 발음으로도 적으세요.\n"
-        "한자·가나 병기 없이 일본어 문장과 한글 발음만.\n"
-        "아래 두 줄 형식만 출력하세요 (앞말·따옴표·설명 금지).\n"
-        "JA: <일본어 번역>\n"
-        "발음: <한글 발음>\n\n"
-        f"{korean}"
-    )
-    raw = _converse_text(translate_prompt, temperature=0.2)
-    japanese, pronunciation = _parse_ja_and_pronunciation(raw)
-    logger.info("ko2ja ja=%s pron=%s", japanese[:200], pronunciation[:200])
+    japanese, pronunciation = _translate_ko_to_ja(korean)
     return korean, japanese, pronunciation, VOXTRAL_MODEL_ID
 
 
@@ -275,9 +284,49 @@ def _handle_transcribe(event: Dict[str, Any]) -> Dict[str, Any]:
     except json.JSONDecodeError:
         return _response(400, {"error": "Invalid JSON body"})
 
+    direction = str(payload.get("direction") or "ja2ko").strip().lower()
+    if direction not in ("ja2ko", "ko2ja"):
+        return _response(400, {"error": "direction must be ja2ko or ko2ja"})
+
+    # 한일 키보드 입력: audio 없이 한국어 텍스트만 번역
+    text_input = _clean_model_text(
+        str(payload.get("text") or payload.get("korean") or "")
+    )
+    if direction == "ko2ja" and text_input and not (
+        payload.get("audio") or payload.get("audioBase64")
+    ):
+        try:
+            japanese, pronunciation = _translate_ko_to_ja(text_input)
+            return _response(
+                200,
+                {
+                    "direction": "ko2ja",
+                    "text": japanese,
+                    "korean": text_input,
+                    "japanese": japanese,
+                    "pronunciation": pronunciation,
+                    "language": "ja",
+                    "sourceLanguage": "ko",
+                    "targetLanguage": "ja",
+                    "modelId": VOXTRAL_MODEL_ID,
+                    "inputMode": "keyboard",
+                    "steps": ["translate_ja_pron"],
+                },
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Text translation failed")
+            return _response(
+                502,
+                {
+                    "error": "Translation failed",
+                    "detail": str(exc),
+                    "modelId": VOXTRAL_MODEL_ID,
+                },
+            )
+
     audio_b64 = payload.get("audio") or payload.get("audioBase64") or ""
     if not audio_b64:
-        return _response(400, {"error": "Missing audio (base64)"})
+        return _response(400, {"error": "Missing audio (base64) or text"})
 
     try:
         audio_bytes = base64.b64decode(audio_b64, validate=False)
@@ -299,10 +348,6 @@ def _handle_transcribe(event: Dict[str, Any]) -> Dict[str, Any]:
     if "/" in str(audio_format):
         audio_format = str(audio_format).split("/")[-1]
 
-    direction = str(payload.get("direction") or "ja2ko").strip().lower()
-    if direction not in ("ja2ko", "ko2ja"):
-        return _response(400, {"error": "direction must be ja2ko or ko2ja"})
-
     try:
         if direction == "ko2ja":
             korean, japanese, pronunciation, model_id = _speech_ko_then_ja(
@@ -321,6 +366,7 @@ def _handle_transcribe(event: Dict[str, Any]) -> Dict[str, Any]:
                     "targetLanguage": "ja",
                     "modelId": model_id,
                     "bytes": len(audio_bytes),
+                    "inputMode": "mic",
                     "steps": ["stt_ko", "translate_ja_pron"],
                 },
             )

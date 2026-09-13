@@ -330,11 +330,33 @@
         <h2>한일 통역</h2>
         <button type="button" id="translate-koja-close" class="link-btn">닫기</button>
       </div>
-      <p class="translate-hint">
+      <div
+        class="translate-mode-toggle"
+        role="group"
+        aria-label="입력 방식"
+      >
+        <button
+          type="button"
+          id="translate-koja-mode-mic"
+          class="mode-btn active"
+          aria-pressed="true"
+        >
+          마이크
+        </button>
+        <button
+          type="button"
+          id="translate-koja-mode-keyboard"
+          class="mode-btn"
+          aria-pressed="false"
+        >
+          키보드
+        </button>
+      </div>
+      <p id="translate-koja-hint" class="translate-hint">
         마이크를 <strong>누르고 있는 동안</strong>만 한국어를 듣습니다.
-        손을 떼면 일본어로 번역하고, 결과의 마이크 버튼으로 소리를 들을 수 있습니다.
+        손을 떼면 일본어로 번역하고, 스피커로 들을 수 있습니다.
       </p>
-      <div class="translate-controls">
+      <div id="translate-koja-mic-wrap" class="translate-controls">
         <button
           type="button"
           id="translate-koja-record"
@@ -350,6 +372,19 @@
           </svg>
         </button>
       </div>
+      <form id="translate-koja-keyboard" class="translate-keyboard" hidden>
+        <label class="sr-only" for="translate-koja-input">한국어 입력</label>
+        <textarea
+          id="translate-koja-input"
+          rows="3"
+          maxlength="800"
+          placeholder="번역할 한국어를 입력하세요"
+          autocomplete="off"
+        ></textarea>
+        <button type="submit" id="translate-koja-submit" class="primary-btn">
+          번역
+        </button>
+      </form>
       <p id="translate-koja-status" class="status">
         마이크를 누른 채 말하고, 떼면 번역됩니다.
       </p>

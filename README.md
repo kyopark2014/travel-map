@@ -1,6 +1,6 @@
 # Travel Map
 
-MapLibre GL JS + WebGL로 위성·지형을 브라우저에서 직접 렌더링하는 정적 웹 앱입니다.
+MapLibre GL JS + WebGL로 위성·지형을 브라우저에서 직접 렌더링하는 정적 웹 앱입니다. 한일 또는 일한 번역도 함께 제공합니다.
 
 
 ## 시스템 구성
@@ -14,8 +14,8 @@ MapLibre GL JS + WebGL로 위성·지형을 브라우저에서 직접 렌더링�
 |------|------|
 | 클라이언트 | Browser · MapLibre GL JS (위성·DEM·투어·측정 UI) |
 | 정적 호스팅 | CloudFront (OAI) → S3 `web/` (`index.html`, `css/`, `js/`, `data/`, `photos/`) |
-| API | HTTP API Gateway `api-travel-map` → Lambda `lambda-api-travel-map` (`GET /health`, `GET /tours`) |
-| 외부 | Esri (위성/Topo) · AWS Terrain Tiles (Terrarium DEM) · Nominatim (지오코딩) |
+| API | HTTP API Gateway `api-travel-map` → Lambda `lambda-api-travel-map` (`GET /health`, `GET /tours`, `POST /transcribe`, `POST /speak`) |
+| 외부 | Esri (위성/Topo) · AWS Terrain Tiles (Terrarium DEM) · Nominatim (지오코딩) · Bedrock Voxtral (음성 통역) · Amazon Polly (일본어 TTS) |
 
 ## 기능
 
@@ -29,6 +29,8 @@ MapLibre GL JS + WebGL로 위성·지형을 브라우저에서 직접 렌더링�
 - **2일차 10/9** — 이비스 스타일스 삿포로 출발 → 오도리·시계탑·도청사 → 시로이 코이비토 → 다나카 주조 → 오타루 → 시카노유
 - **3일차 10/10** — 호텔 시카노유 출발 → 도야 유람선 · 쇼와신잔 · 사이로 · 지옥계곡 · 세키스이테이
 - **4일차 10/11** — 노보리베츠 세키스이테이 출발 → 다테 지다이무라 → 신치토세 → 인천
+- **일한 통역** — 일본어 음성을 한국어로 실시간 번역 (Bedrock Voxtral)
+- **한일 통역** — 한국어 push-to-talk → 일본어·한글 발음 번역 + Polly 음성 재생
 
 ## 초기 위치
 
@@ -58,11 +60,23 @@ MapLibre GL JS + WebGL로 위성·지형을 브라우저에서 직접 렌더링�
 
 | 메서드·경로 | Lambda 동작 | 프론트 사용처 |
 |-------------|-------------|----------------|
-| `GET /health` | `{ status, service, region }` JSON | 모니터링·헬스 확인 (선택) |
-| `GET /tours` | 패키징된 `tours.geojson` 전체를 JSON 응답 (CORS `*`) | 지도 `load` 후 투어 드롭다운·경로 레이어 |
+| `GET /health` | `{ status, service, region, voxtralModelId, … }` JSON | 모니터링·헬스 확인 |
+| `GET /tours` | 패키징된 `tours.geojson` 전체를 JSON 응답 (CORS `*`) | 지도 투어 드롭다운·경로 레이어 |
+| `POST /transcribe` | WAV(base64) → Bedrock Voxtral (`direction`: `ja2ko` \| `ko2ja`) | 일한 / 한일 통역 패널 |
+| `POST /speak` | 일본어 텍스트 → Amazon Polly MP3(base64) | 한일 결과 스피커 버튼 |
 | `OPTIONS` | CORS preflight | 브라우저 cross-origin `fetch` |
 
-프론트는 `index.html`이 로드하는 `js/config.js`의 `window.APP_CONFIG.apiToursUrl`(배포 시 API Gateway URL + `/tours`)을 사용합니다.
+프론트는 `index.html`이 로드하는 `js/config.js`의 `window.APP_CONFIG`를 사용합니다.
+
+```javascript
+// js/config.js (installer 생성)
+window.APP_CONFIG = {
+  apiToursUrl: "…/tours",
+  apiTranscribeUrl: "…/transcribe",
+  apiSpeakUrl: "…/speak",
+  // …
+};
+```
 
 ```javascript
 // js/app.js (지도 load 이후)
@@ -72,10 +86,141 @@ const res = await fetch(toursUrl, { cache: 'no-store' });
 tourData = await res.json();
 ```
 
-- **배포 환경**: CloudFront/S3에서 정적 앱을 열고, 투어 데이터만 API Gateway 도메인으로 `fetch`합니다. GeoJSON 원본은 S3 정적 `data/`와 Lambda 번들 두 곳에 있을 수 있으나, 운영 UI는 **`apiToursUrl` 우선**입니다.
-- **로컬 개발**: `config.js`에 API URL이 없거나 서버만 띄운 경우 **`data/tours.geojson` 폴백**으로 동일한 GeoJSON을 읽어 3D 표시·투어 UI를 검증할 수 있습니다.
+- **배포 환경**: CloudFront/S3에서 정적 앱을 열고, 투어·통역 API는 API Gateway 도메인으로 `fetch`합니다.
+- **로컬 개발**: `config.js`에 API URL이 없거나 서버만 띄운 경우 **`data/tours.geojson` 폴백**으로 3D·투어 UI를 검증할 수 있습니다. 통역은 API URL이 필요합니다.
 
 지오코딩(Nominatim)·위성/DEM 타일(Esri·AWS)은 **브라우저가 각 공급자에 직접 요청**하며, Lambda 경유하지 않습니다.
+
+### 일한번역
+
+메뉴 **일한** 패널입니다. 일본어를 말하면 한국어 번역만 쌓입니다.
+
+**STT / 음성 모델**
+
+| 항목 | 값 |
+|------|-----|
+| 제공 | Amazon Bedrock `Converse` (오디오 입력) |
+| 모델 ID | `mistral.voxtral-small-24b-2507` (Mistral **Voxtral Small 24B**) |
+| 역할 | 일본어 음성을 듣고 **바로 한국어 번역문** 생성 (별도 Transcribe/Whisper 없음) |
+| 환경변수 | Lambda `VOXTRAL_MODEL_ID` (기본값 위 모델) |
+
+Amazon Transcribe가 아니라 **멀티모달 음성·언어 모델(Voxtral)** 이 STT+번역을 한 호출로 처리합니다.
+
+**흐름**
+
+1. 마이크 토글로 녹음 시작 (약 6초 세그먼트 연속)
+2. 브라우저에서 WAV로 변환 후 `POST /transcribe` (`direction: "ja2ko"`)
+3. Lambda가 Bedrock **Voxtral**에 오디오+프롬프트를 한 번에 넘겨 **한국어만** 반환
+4. `js/translate-db.js`(sql.js + IndexedDB)에 `direction=ja2ko`로 저장·표시
+
+**프론트 요청**
+
+```javascript
+// js/app.js — submitTranslateAudio (일한)
+await fetch(cfg.apiTranscribeUrl, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    audio: audioBase64,
+    format: 'wav',
+    direction: 'ja2ko',
+    language: 'ja',
+    targetLanguage: 'ko',
+  }),
+});
+// 응답: { korean, text, modelId: "mistral.voxtral-small-24b-2507", … }
+```
+
+**Lambda (1단계: 음성 → 한국어)**
+
+```python
+# lambda-api/lambda_function.py
+VOXTRAL_MODEL_ID = os.environ.get(
+    "VOXTRAL_MODEL_ID", "mistral.voxtral-small-24b-2507"
+)
+
+def _speech_to_korean(audio_bytes, audio_format):
+    prompt = (
+        "この音声は日本語です。内容を理解し、自然な韓国語に翻訳してください。"
+        "出力は韓国語（ハングル）の翻訳文のみ。"
+    )
+    # Bedrock Converse: content에 audio + text
+    korean = _converse_audio(audio_bytes, audio_format, prompt)
+    return korean, VOXTRAL_MODEL_ID
+```
+
+### 한일번역
+
+메뉴 **한일** 패널입니다. 마이크를 **누르고 있는 동안만** 듣고, 손을 떼면 번역합니다.
+
+**STT / 음성·번역 모델**
+
+| 항목 | 값 |
+|------|-----|
+| STT 모델 | 동일 — Amazon Bedrock **Voxtral Small 24B** (`mistral.voxtral-small-24b-2507`) |
+| STT 역할 | 한국어 음성을 **한글 원문**으로 받아쓰기 (`_converse_audio`) |
+| 번역 모델 | 동일 Voxtral — 텍스트만 전달 (`_converse_text`)해 일본어 + 한글 발음 생성 |
+| TTS | Amazon Polly `Kazuha` (neural, `ja-JP`) — STT와 별개 |
+
+한일도 Transcribe를 쓰지 않고, **1호출 STT(오디오) → 2호출 번역(텍스트)** 로 같은 Voxtral을 재사용합니다.
+
+**흐름**
+
+1. push-to-talk (`pointerdown` / `pointerup`)로 녹음
+2. `POST /transcribe` (`direction: "ko2ja"`)
+3. Lambda **2단계**: Voxtral 한국어 STT → Voxtral 일본어·발음 번역
+4. UI 순서: **한국어 → 일본어 → 발음**, 스피커로 `POST /speak` (Polly, 자동 재생 없음)
+5. SQLite에 `direction=ko2ja`로 이력 저장
+
+**프론트 (누르고 말하기)**
+
+```javascript
+// js/app.js — 한일 전용
+translateKojaRecord.addEventListener('pointerdown', (e) => {
+  startKojaPushToTalk(e);  // getUserMedia + MediaRecorder
+});
+translateKojaRecord.addEventListener('pointerup', (e) => {
+  endKojaPushToTalk(e);    // stop → submitTranslateAudio(direction: 'ko2ja')
+});
+```
+
+**Lambda (STT → JA + 발음)**
+
+```python
+# lambda-api/lambda_function.py
+def _speech_ko_then_ja(audio_bytes, audio_format):
+    # 1) STT: Voxtral + audio → 한국어 원문
+    korean = _converse_audio(audio_bytes, audio_format, stt_prompt)
+    # 2) 번역: 동일 Voxtral + text → 일본어·발음
+    raw = _converse_text(
+        "JA: <일본어>\\n발음: <한글 발음>\\n\\n" + korean
+    )
+    japanese, pronunciation = _parse_ja_and_pronunciation(raw)
+    return korean, japanese, pronunciation, VOXTRAL_MODEL_ID
+```
+
+**Polly 재생 (TTS, STT와 별도)**
+
+```python
+# POST /speak
+polly.synthesize_speech(
+    Text=japanese_text,
+    OutputFormat="mp3",
+    VoiceId="Kazuha",       # neural; 실패 시 Takumi standard 폴백
+    LanguageCode="ja-JP",
+)
+# 응답: { audio: "<base64 mp3>", voice, engine, … }
+```
+
+```javascript
+// js/app.js — 스피커 버튼
+const res = await fetch(cfg.apiSpeakUrl, {
+  method: 'POST',
+  body: JSON.stringify({ text: japanese, language: 'ja' }),
+});
+const { audio } = await res.json();
+new Audio(`data:audio/mpeg;base64,${audio}`).play();
+```
 
 ## 실행 방법
 
@@ -122,7 +267,7 @@ python3 uninstaller.py -y         # 리소스 삭제
 |--------|------|
 | S3 | `storage-for-travel-map-{account}-{region}` (`web/` 정적) |
 | CloudFront | comment `CloudFront-S3-for-travel-map` |
-| Lambda | `lambda-api-travel-map` (`GET /health`, `GET /tours`) |
+| Lambda | `lambda-api-travel-map` (`/health`, `/tours`, `/transcribe`, `/speak`) |
 | HTTP API | `api-travel-map` |
 
 배포 결과는 `config.json`에 저장되고, 프론트용 `js/config.js`가 생성됩니다.
@@ -134,6 +279,7 @@ travel-map/
   index.html
   css/styles.css
   js/app.js
+  js/translate-db.js   # 통역 이력 (sql.js + IndexedDB)
   js/measure.js
   js/tour.js
   data/tours.geojson
