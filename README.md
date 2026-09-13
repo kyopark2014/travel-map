@@ -7,7 +7,7 @@ MapLibre GL JS + WebGL로 위성·지형을 브라우저에서 직접 렌더링�
 
 전체 구성은 아래와 같습니다.
 
-<img width="963" height="445" alt="image" src="https://github.com/user-attachments/assets/cbd78036-fa6f-48e4-bfbf-bd75de195736" />
+<img width="800" alt="image" src="https://github.com/user-attachments/assets/cbd78036-fa6f-48e4-bfbf-bd75de195736" />
 
 
 | 계층 | 구성 |
