@@ -95,6 +95,8 @@ def update_config_json(deletion_summary: Dict):
         "apiGatewayUrl",
         "apiGatewayHealthUrl",
         "apiToursUrl",
+        "apiTranscribeUrl",
+        "apiSpeakUrl",
         "lambdaApiName",
         "lambdaApiArn",
     ):

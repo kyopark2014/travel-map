@@ -250,6 +250,195 @@ body {
   backdrop-filter: blur(10px);
 }
 
+.panel-translate {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  max-height: inherit;
+  overflow: hidden;
+  background: var(--panel);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+}
+
+.translate-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.translate-controls {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.mic-btn {
+  width: 56px;
+  height: 56px;
+  border: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: #0f6e56;
+  color: #fff;
+  box-shadow: var(--shadow);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.mic-btn:hover {
+  transform: translateY(-1px);
+}
+
+.mic-btn.recording {
+  background: #b42318;
+}
+
+.mic-btn .mic-icon {
+  width: 26px;
+  height: 26px;
+}
+
+/* 일한/한일: 누르기 쉽게 마이크 1.5배 */
+#translate-record.mic-btn,
+#translate-koja-record.mic-btn {
+  width: 84px;
+  height: 84px;
+}
+
+#translate-record.mic-btn .mic-icon,
+#translate-koja-record.mic-btn .mic-icon {
+  width: 39px;
+  height: 39px;
+}
+
+.translate-log {
+  flex: 1;
+  min-height: 120px;
+  max-height: min(40vh, 360px);
+  overflow: auto;
+  display: grid;
+  gap: 10px;
+  padding: 4px 2px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.translate-empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.translate-segment {
+  padding: 12px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid var(--line);
+}
+
+.translate-ko {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink);
+  font-weight: 500;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.translate-segment.translate-bilingual {
+  display: grid;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.translate-segment.translate-bilingual.selected {
+  border-color: #0f6e56;
+  box-shadow: 0 0 0 1px #0f6e56;
+}
+
+.translate-ja-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.translate-ja-block {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.translate-ja {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--ink);
+  font-weight: 500;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.translate-pronunciation {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #64748b;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.translate-bilingual .translate-ko {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.speak-btn {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: #0f6e56;
+  color: #fff;
+  padding: 0;
+}
+
+.speak-btn:hover,
+.speak-btn:focus-visible {
+  background: #0b5a46;
+  border-color: #0b5a46;
+  color: #fff;
+}
+
+.speak-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.speak-btn .speak-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.mic-btn.hold-mode {
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
 .panel-settings h2 {
   margin: 0 0 12px;
 }
@@ -976,16 +1165,16 @@ input[type="range"] {
 
 @media (max-width: 900px) {
   .app-header {
-    top: 10px;
-    left: 8px;
-    right: 8px;
-    gap: 6px;
+    top: 8px;
+    left: 4px;
+    right: 4px;
+    gap: 4px;
   }
 
   .header-nav {
     flex-wrap: nowrap;
-    max-width: calc(100vw - 16px);
-    gap: 4px;
+    max-width: calc(100vw - 8px);
+    gap: 3px;
   }
 
   .header-nav .pill.muted {
@@ -993,14 +1182,14 @@ input[type="range"] {
   }
 
   .header-nav .menu-btn.pill {
-    padding: 7px 8px;
-    gap: 3px;
-    font-size: 11px;
+    padding: 6px 6px;
+    gap: 2px;
+    font-size: 10px;
   }
 
   .header-nav .menu-btn .icon-travel {
-    width: 14px;
-    height: 14px;
+    width: 13px;
+    height: 13px;
   }
 
   .side-panel {
@@ -1010,6 +1199,65 @@ input[type="range"] {
     width: auto;
     max-width: none;
     max-height: calc(100vh - 72px);
+    max-height: calc(100dvh - 72px);
+  }
+
+  .panel-translate {
+    gap: 8px;
+    padding: 12px 14px;
+    max-height: calc(100vh - 72px);
+    max-height: calc(100dvh - 72px);
+  }
+
+  .panel-translate .translate-hint {
+    font-size: 12px;
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .panel-translate .mic-btn {
+    width: 48px;
+    height: 48px;
+  }
+
+  .panel-translate .mic-btn .mic-icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  #translate-record.mic-btn,
+  #translate-koja-record.mic-btn {
+    width: 72px;
+    height: 72px;
+  }
+
+  #translate-record.mic-btn .mic-icon,
+  #translate-koja-record.mic-btn .mic-icon {
+    width: 33px;
+    height: 33px;
+  }
+
+  .panel-translate .status {
+    font-size: 12px;
+    margin: 0;
+  }
+
+  .translate-log {
+    min-height: 120px;
+    max-height: min(42vh, 330px);
+    gap: 8px;
+  }
+
+  .translate-segment {
+    padding: 10px;
+  }
+
+  .translate-ko {
+    font-size: 14px;
+    line-height: 1.45;
   }
 
   .nav-stack {

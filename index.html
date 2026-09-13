@@ -11,7 +11,7 @@
       rel="stylesheet"
       href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"
     />
-    <link rel="stylesheet" href="css/styles.css?v=20260313-nav-compact" />
+    <link rel="stylesheet" href="css/styles.css?v=20260313-mic-sqlite" />
   </head>
   <body>
     <div id="map"></div>
@@ -32,6 +32,38 @@
             />
           </svg>
           투어
+        </button>
+
+        <button
+          type="button"
+          id="translate-toggle"
+          class="pill menu-btn"
+          aria-expanded="false"
+          aria-controls="translate-panel"
+        >
+          <svg class="icon-travel" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M12.9 15h-1.8L9.7 11H7.3l3.4 8h2.2l3.4-8h-2.4L12.9 15zM19 4h-5.5l-.7-2H5C3.9 2 3 2.9 3 4v13c0 1.1.9 2 2 2h6.1c.3 1.7 1.8 3 3.6 3H19c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 15h-4.3c-.9 0-1.7-.8-1.7-1.7V6H19v13zM5 15V4h5.7l.7 2H5v9z"
+            />
+          </svg>
+          일한
+        </button>
+
+        <button
+          type="button"
+          id="translate-koja-toggle"
+          class="pill menu-btn"
+          aria-expanded="false"
+          aria-controls="translate-koja-panel"
+        >
+          <svg class="icon-travel" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M12.9 15h-1.8L9.7 11H7.3l3.4 8h2.2l3.4-8h-2.4L12.9 15zM19 4h-5.5l-.7-2H5C3.9 2 3 2.9 3 4v13c0 1.1.9 2 2 2h6.1c.3 1.7 1.8 3 3.6 3H19c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 15h-4.3c-.9 0-1.7-.8-1.7-1.7V6H19v13zM5 15V4h5.7l.7 2H5v9z"
+            />
+          </svg>
+          한일
         </button>
 
         <button
@@ -262,6 +294,68 @@
       </div>
     </aside>
 
+    <aside id="translate-panel" class="side-panel panel panel-translate" hidden>
+      <div class="panel-search-head">
+        <h2>일한 통역</h2>
+        <button type="button" id="translate-close" class="link-btn">닫기</button>
+      </div>
+      <p class="translate-hint">
+        마이크를 눌러 일본어를 말하면 한국어로 번역됩니다.
+        이전 결과는 아래로 스크롤해 확인할 수 있습니다.
+      </p>
+      <div class="translate-controls">
+        <button
+          type="button"
+          id="translate-record"
+          class="mic-btn"
+          aria-label="실시간 통역 시작"
+          title="실시간 통역 시작"
+        >
+          <svg class="mic-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-3.1A7 7 0 0 0 19 11h-2z"
+            />
+          </svg>
+        </button>
+      </div>
+      <p id="translate-status" class="status">
+        마이크(초록)를 눌러 통역을 시작하세요.
+      </p>
+      <div id="translate-log" class="translate-log" aria-live="polite"></div>
+    </aside>
+
+    <aside id="translate-koja-panel" class="side-panel panel panel-translate" hidden>
+      <div class="panel-search-head">
+        <h2>한일 통역</h2>
+        <button type="button" id="translate-koja-close" class="link-btn">닫기</button>
+      </div>
+      <p class="translate-hint">
+        마이크를 <strong>누르고 있는 동안</strong>만 한국어를 듣습니다.
+        손을 떼면 일본어로 번역하고, 결과의 마이크 버튼으로 소리를 들을 수 있습니다.
+      </p>
+      <div class="translate-controls">
+        <button
+          type="button"
+          id="translate-koja-record"
+          class="mic-btn"
+          aria-label="누르고 말하기"
+          title="누르고 말하기"
+        >
+          <svg class="mic-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-3.1A7 7 0 0 0 19 11h-2z"
+            />
+          </svg>
+        </button>
+      </div>
+      <p id="translate-koja-status" class="status">
+        마이크를 누른 채 말하고, 떼면 번역됩니다.
+      </p>
+      <div id="translate-koja-log" class="translate-log" aria-live="polite"></div>
+    </aside>
+
     <aside id="settings-panel" class="side-panel panel panel-settings" hidden>
       <div class="panel-search-head">
         <h2>지도 설정</h2>
@@ -300,6 +394,6 @@
   <script src="js/config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-  <script type="module" src="js/app.js?v=20260313-tour-fit"></script>
+  <script type="module" src="js/app.js?v=20260313-mic-sqlite"></script>
   </body>
 </html>

@@ -1,5 +1,10 @@
 import { createMeasureTool, formatDistance } from './measure.js';
 import { createPathTour } from './tour.js?v=20260313-stop-bubbles';
+import {
+  initTranslateDb,
+  insertTranslation,
+  listTranslations,
+} from './translate-db.js';
 
 const TRIP_START = {
   name: '신치토세공항(新千歳空港)',
@@ -71,6 +76,18 @@ const clothingContent = document.getElementById('clothing-content');
 const settingsToggle = document.getElementById('settings-toggle');
 const settingsPanel = document.getElementById('settings-panel');
 const settingsClose = document.getElementById('settings-close');
+const translateToggle = document.getElementById('translate-toggle');
+const translatePanel = document.getElementById('translate-panel');
+const translateClose = document.getElementById('translate-close');
+const translateRecord = document.getElementById('translate-record');
+const translateStatus = document.getElementById('translate-status');
+const translateLog = document.getElementById('translate-log');
+const translateKojaToggle = document.getElementById('translate-koja-toggle');
+const translateKojaPanel = document.getElementById('translate-koja-panel');
+const translateKojaClose = document.getElementById('translate-koja-close');
+const translateKojaRecord = document.getElementById('translate-koja-record');
+const translateKojaStatus = document.getElementById('translate-koja-status');
+const translateKojaLog = document.getElementById('translate-koja-log');
 const btnResetNorth = document.getElementById('btn-reset-north');
 const btnZoomIn = document.getElementById('btn-zoom-in');
 const btnZoomOut = document.getElementById('btn-zoom-out');
@@ -88,7 +105,7 @@ let currentBasemap = 'satellite';
 let tourData = null;
 let activeTourId = null;
 let exaggeration = 1.5;
-/** @type {null | 'tour' | 'itinerary' | 'clothing' | 'search' | 'settings' | 'place'} */
+/** @type {null | 'tour' | 'itinerary' | 'clothing' | 'search' | 'settings' | 'place' | 'translate' | 'translate-koja'} */
 let activeSidePanel = null;
 /** @type {null | { places: Record<string, any>, attribution?: string }} */
 let photoManifest = null;
@@ -118,9 +135,18 @@ function syncMenuButtons() {
     'aria-expanded',
     activeSidePanel === 'settings' ? 'true' : 'false',
   );
+  translateToggle?.setAttribute(
+    'aria-expanded',
+    activeSidePanel === 'translate' ? 'true' : 'false',
+  );
+  translateKojaToggle?.setAttribute(
+    'aria-expanded',
+    activeSidePanel === 'translate-koja' ? 'true' : 'false',
+  );
 }
 
 function setSidePanel(panel) {
+  const prev = activeSidePanel;
   const next = activeSidePanel === panel ? null : panel;
   activeSidePanel = next;
 
@@ -129,8 +155,24 @@ function setSidePanel(panel) {
   if (clothingPanel) clothingPanel.hidden = next !== 'clothing';
   if (searchPanel) searchPanel.hidden = next !== 'search';
   if (settingsPanel) settingsPanel.hidden = next !== 'settings';
+  if (translatePanel) translatePanel.hidden = next !== 'translate';
+  if (translateKojaPanel) translateKojaPanel.hidden = next !== 'translate-koja';
   if (placePhotoCard) placePhotoCard.hidden = next !== 'place';
   syncMenuButtons();
+
+  const leavingTranslate =
+    (prev === 'translate' || prev === 'translate-koja') &&
+    next !== 'translate' &&
+    next !== 'translate-koja';
+  const switchingTranslate =
+    (prev === 'translate' && next === 'translate-koja') ||
+    (prev === 'translate-koja' && next === 'translate');
+  if (leavingTranslate || switchingTranslate) {
+    kojaHoldActive = false;
+    kojaPointerId = null;
+    translateListening = false;
+    stopTranslateRecording({ silent: true, releaseStream: true }).catch(() => {});
+  }
 
   if (next === 'tour' && tourData && tourSelect?.value) {
     showTour(tourSelect.value, { fit: false });
@@ -155,6 +197,14 @@ function setSidePanel(panel) {
   }
   if (next === 'search') {
     placeQuery.focus();
+  }
+  if (next === 'translate') {
+    activeTranslateDirection = 'ja2ko';
+    loadTranslateHistory('ja2ko').catch((err) => console.error(err));
+  }
+  if (next === 'translate-koja') {
+    activeTranslateDirection = 'ko2ja';
+    loadTranslateHistory('ko2ja').catch((err) => console.error(err));
   }
   if (next === 'place') {
     renderPlacePhotoPanel();
@@ -198,6 +248,16 @@ function setClothingOpen(open) {
 function setSettingsOpen(open) {
   if (open) setSidePanel('settings');
   else if (activeSidePanel === 'settings') setSidePanel(null);
+}
+
+function setTranslateOpen(open) {
+  if (open) setSidePanel('translate');
+  else if (activeSidePanel === 'translate') setSidePanel(null);
+}
+
+function setTranslateKojaOpen(open) {
+  if (open) setSidePanel('translate-koja');
+  else if (activeSidePanel === 'translate-koja') setSidePanel(null);
 }
 
 const markdownLoaded = {
@@ -299,6 +359,16 @@ settingsToggle.addEventListener('click', (e) => {
   setSidePanel('settings');
 });
 
+translateToggle?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  setSidePanel('translate');
+});
+
+translateKojaToggle?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  setSidePanel('translate-koja');
+});
+
 searchClose.addEventListener('click', () => {
   setSearchPanelOpen(false);
 });
@@ -314,6 +384,837 @@ clothingClose.addEventListener('click', () => {
 settingsClose.addEventListener('click', () => {
   setSettingsOpen(false);
 });
+
+translateClose?.addEventListener('click', () => {
+  setTranslateOpen(false);
+});
+
+translateKojaClose?.addEventListener('click', () => {
+  setTranslateKojaOpen(false);
+});
+
+/* ---------- Speech translate: 일한 (ja2ko) / 한일 (ko2ja + Polly) ---------- */
+const TRANSLATE_SEGMENT_MS = 6000;
+/** @type {'ja2ko' | 'ko2ja'} */
+let activeTranslateDirection = 'ja2ko';
+let translateMediaStream = null;
+let translateRecorder = null;
+let translateChunks = [];
+let translateSegmentTimer = null;
+let translateListening = false;
+let translateBusy = false;
+let translatePendingRestart = false;
+/** @type {HTMLAudioElement | null} */
+let translateSpeakAudio = null;
+
+function translateUi(direction = activeTranslateDirection) {
+  if (direction === 'ko2ja') {
+    return {
+      direction: 'ko2ja',
+      record: translateKojaRecord,
+      status: translateKojaStatus,
+      log: translateKojaLog,
+    };
+  }
+  return {
+    direction: 'ja2ko',
+    record: translateRecord,
+    status: translateStatus,
+    log: translateLog,
+  };
+}
+
+function setTranslateStatus(message, direction = activeTranslateDirection) {
+  const ui = translateUi(direction);
+  if (ui.status) ui.status.textContent = message;
+}
+
+function setTranslateListeningUi(listening) {
+  translateListening = listening;
+  const ui = translateUi();
+  if (!ui.record) return;
+  ui.record.classList.toggle('recording', listening);
+  if (ui.direction === 'ko2ja') {
+    ui.record.setAttribute(
+      'aria-label',
+      listening ? '말하는 중 (손을 떼면 번역)' : '누르고 말하기',
+    );
+    ui.record.title = listening ? '손을 떼면 번역' : '누르고 말하기';
+    return;
+  }
+  ui.record.setAttribute(
+    'aria-label',
+    listening ? '실시간 통역 중지' : '실시간 통역 시작',
+  );
+  ui.record.title = listening ? '통역 중지' : '통역 시작';
+}
+
+function renderTranslateEmpty(direction = activeTranslateDirection) {
+  const ui = translateUi(direction);
+  if (!ui.log) return;
+  const hint =
+    direction === 'ko2ja'
+      ? '마이크를 누른 채 말하면, 손을 뗀 뒤 일본어·발음이 여기에 쌓입니다. 마이크 버튼으로 들을 수 있습니다.'
+      : '통역 결과가 여기에 쌓입니다. 스크롤로 이전 내용을 볼 수 있습니다.';
+  ui.log.innerHTML = `<p class="translate-empty">${hint}</p>`;
+}
+
+function clearKojaSelection(except = null) {
+  translateKojaLog?.querySelectorAll('.translate-segment.selected').forEach((el) => {
+    if (el !== except) el.classList.remove('selected');
+  });
+}
+
+const SPEAK_ICON =
+  '<svg class="speak-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>';
+
+function normalizeKojaFields({ korean = '', japanese = '', pronunciation = '' }) {
+  let ja = String(japanese || '').trim();
+  let pron = String(pronunciation || '').trim();
+  const ko = String(korean || '').trim();
+
+  const splitPron = (value) => {
+    const m = String(value || '').match(
+      /([\s\S]*?)(?:\n|^|\s)(?:발음|發音)\s*[:：]\s*([\s\S]+)$/m,
+    );
+    if (!m) return { text: String(value || '').trim(), pron: '' };
+    return { text: m[1].trim(), pron: m[2].trim() };
+  };
+
+  const fromJa = splitPron(ja);
+  if (fromJa.pron) {
+    ja = fromJa.text;
+    if (!pron) pron = fromJa.pron;
+  }
+
+  pron = pron
+    .replace(/^(?:발음|發音|Pron(?:unciation)?)\s*[:：]\s*/i, '')
+    .trim();
+
+  // Remove duplicate pronunciation lines from Japanese body
+  if (pron) {
+    ja = ja
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => {
+        if (!line) return false;
+        const bare = line.replace(/^(?:발음|發音)\s*[:：]\s*/i, '').trim();
+        return bare !== pron && line !== `발음: ${pron}` && line !== `발음：${pron}`;
+      })
+      .join('\n')
+      .trim();
+  }
+
+  return { korean: ko, japanese: ja, pronunciation: pron };
+}
+
+function appendTranslateSegment(
+  { direction = 'ja2ko', korean, japanese, pronunciation, createdAt },
+  { scroll = true, prepend = false } = {},
+) {
+  const ui = translateUi(direction);
+  if (!ui.log) return;
+  const empty = ui.log.querySelector('.translate-empty');
+  if (empty) empty.remove();
+
+  const card = document.createElement('article');
+  card.className =
+    direction === 'ko2ja'
+      ? 'translate-segment translate-bilingual'
+      : 'translate-segment';
+
+  if (direction === 'ko2ja') {
+    const normalized = normalizeKojaFields({
+      korean,
+      japanese,
+      pronunciation,
+    });
+    const jaText = normalized.japanese;
+    const pronText = normalized.pronunciation;
+    const koText = normalized.korean;
+
+    const ko = document.createElement('p');
+    ko.className = 'translate-ko';
+    ko.textContent = koText || '(한국어 원문 없음)';
+    card.append(ko);
+
+    const row = document.createElement('div');
+    row.className = 'translate-ja-row';
+
+    const block = document.createElement('div');
+    block.className = 'translate-ja-block';
+    const ja = document.createElement('p');
+    ja.className = 'translate-ja';
+    ja.textContent = jaText || '(일본어 번역 없음)';
+    const pron = document.createElement('p');
+    pron.className = 'translate-pronunciation';
+    pron.textContent = pronText;
+    if (!pronText) pron.hidden = true;
+    block.append(ja, pron);
+
+    const speakBtn = document.createElement('button');
+    speakBtn.type = 'button';
+    speakBtn.className = 'speak-btn';
+    speakBtn.title = '일본어 듣기 (Amazon Polly)';
+    speakBtn.setAttribute('aria-label', '일본어 듣기');
+    speakBtn.disabled = !jaText;
+    speakBtn.innerHTML = SPEAK_ICON;
+    speakBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      card.classList.add('selected');
+      clearKojaSelection(card);
+      speakJapanese(jaText, speakBtn).catch((err) => console.error(err));
+    });
+
+    row.append(block, speakBtn);
+    card.append(row);
+
+    card.addEventListener('click', () => {
+      card.classList.add('selected');
+      clearKojaSelection(card);
+    });
+    card.dataset.japanese = jaText;
+    card.dataset.pronunciation = pronText;
+
+    if (prepend) ui.log.prepend(card);
+    else ui.log.appendChild(card);
+    if (scroll) ui.log.scrollTop = ui.log.scrollHeight;
+    return { speakBtn, japanese: jaText };
+  }
+
+  const ko = document.createElement('p');
+  ko.className = 'translate-ko';
+  ko.textContent = korean || '(한국어 번역 없음)';
+  card.append(ko);
+
+  if (prepend) ui.log.prepend(card);
+  else ui.log.appendChild(card);
+  if (scroll) ui.log.scrollTop = ui.log.scrollHeight;
+  return null;
+}
+
+async function loadTranslateHistory(direction = activeTranslateDirection) {
+  const ui = translateUi(direction);
+  try {
+    await initTranslateDb();
+    const rows = await listTranslations({ direction, limit: 500 });
+    if (!ui.log) return;
+    if (!rows.length) {
+      renderTranslateEmpty(direction);
+      return;
+    }
+    ui.log.innerHTML = '';
+    rows.forEach((row) => {
+      appendTranslateSegment(
+        {
+          direction,
+          korean: row.korean,
+          japanese: row.japanese,
+          pronunciation: row.pronunciation,
+          createdAt: row.createdAt,
+        },
+        { scroll: false },
+      );
+    });
+    ui.log.scrollTop = ui.log.scrollHeight;
+  } catch (err) {
+    console.error(err);
+    renderTranslateEmpty(direction);
+    setTranslateStatus('이전 통역 기록을 불러오지 못했습니다.', direction);
+  }
+}
+
+async function saveAndShowTranslation({
+  direction = 'ja2ko',
+  korean,
+  japanese = '',
+  pronunciation = '',
+  modelId,
+}) {
+  let ko = String(korean || '').trim();
+  let ja = String(japanese || '').trim();
+  let pron = String(pronunciation || '').trim();
+  if (direction === 'ko2ja') {
+    const normalized = normalizeKojaFields({
+      korean: ko,
+      japanese: ja,
+      pronunciation: pron,
+    });
+    ko = normalized.korean;
+    ja = normalized.japanese;
+    pron = normalized.pronunciation;
+  }
+  if (direction === 'ja2ko' && !ko) return null;
+  if (direction === 'ko2ja' && !ko && !ja) return null;
+  try {
+    await insertTranslation({
+      direction,
+      korean: ko,
+      japanese: ja,
+      pronunciation: pron,
+      modelId,
+    });
+  } catch (err) {
+    console.error(err);
+  }
+  const shown = appendTranslateSegment({
+    direction,
+    korean: ko,
+    japanese: ja,
+    pronunciation: pron,
+  });
+  return {
+    korean: ko,
+    japanese: ja,
+    pronunciation: pron,
+    speakBtn: shown?.speakBtn || null,
+  };
+}
+
+async function speakJapanese(text, button) {
+  const value = String(text || '').trim();
+  if (!value) {
+    setTranslateStatus('읽을 일본어가 없습니다.', 'ko2ja');
+    return;
+  }
+  const cfg = window.APP_CONFIG || {};
+  const url =
+    cfg.apiSpeakUrl ||
+    (cfg.apiGatewayUrl
+      ? `${String(cfg.apiGatewayUrl).replace(/\/$/, '')}/speak`
+      : '');
+  if (!url) {
+    setTranslateStatus(
+      '음성 API가 없습니다. installer로 배포한 뒤 이용해 주세요.',
+      'ko2ja',
+    );
+    return;
+  }
+
+  if (button) button.disabled = true;
+  setTranslateStatus('Amazon Polly로 읽는 중…', 'ko2ja');
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: value, language: 'ja' }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setTranslateStatus(
+        data.detail || data.error || `음성 합성 실패 (HTTP ${res.status})`,
+        'ko2ja',
+      );
+      return;
+    }
+    const audioB64 = data.audio || '';
+    if (!audioB64) {
+      setTranslateStatus('음성 데이터가 비어 있습니다.', 'ko2ja');
+      return;
+    }
+    if (translateSpeakAudio) {
+      translateSpeakAudio.pause();
+      translateSpeakAudio = null;
+    }
+    const audio = new Audio(`data:audio/mpeg;base64,${audioB64}`);
+    translateSpeakAudio = audio;
+    await audio.play();
+    setTranslateStatus('일본어를 재생했습니다.', 'ko2ja');
+  } catch (err) {
+    console.error(err);
+    setTranslateStatus('일본어 재생 중 오류가 발생했습니다.', 'ko2ja');
+  } finally {
+    if (button) button.disabled = !value;
+  }
+}
+
+function encodeWavFromAudioBuffer(audioBuffer) {
+  const numChannels = 1;
+  const sampleRate = audioBuffer.sampleRate;
+  const samples = audioBuffer.getChannelData(0);
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+
+  const writeStr = (offset, str) => {
+    for (let i = 0; i < str.length; i += 1) view.setUint8(offset + i, str.charCodeAt(i));
+  };
+
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + samples.length * 2, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * numChannels * 2, true);
+  view.setUint16(32, numChannels * 2, true);
+  view.setUint16(34, 16, true);
+  writeStr(36, 'data');
+  view.setUint32(40, samples.length * 2, true);
+
+  let offset = 44;
+  for (let i = 0; i < samples.length; i += 1) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    offset += 2;
+  }
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+
+async function blobToWav(blob) {
+  const arrayBuffer = await blob.arrayBuffer();
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  try {
+    const decoded = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
+    const length = decoded.length;
+    const mono = audioCtx.createBuffer(1, length, decoded.sampleRate);
+    const out = mono.getChannelData(0);
+    const channelCount = decoded.numberOfChannels;
+    for (let i = 0; i < length; i += 1) {
+      let sum = 0;
+      for (let c = 0; c < channelCount; c += 1) {
+        sum += decoded.getChannelData(c)[i];
+      }
+      out[i] = sum / channelCount;
+    }
+    return encodeWavFromAudioBuffer(mono);
+  } finally {
+    await audioCtx.close().catch(() => {});
+  }
+}
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || '');
+      const comma = result.indexOf(',');
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error || new Error('FileReader failed'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function pickRecorderMimeType() {
+  const mimeCandidates = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/mp4',
+    'audio/ogg;codecs=opus',
+  ];
+  return (
+    mimeCandidates.find((t) => window.MediaRecorder?.isTypeSupported?.(t)) || ''
+  );
+}
+
+function clearTranslateSegmentTimer() {
+  if (translateSegmentTimer) {
+    clearTimeout(translateSegmentTimer);
+    translateSegmentTimer = null;
+  }
+}
+
+async function stopTranslateRecording({ silent = false, releaseStream = true } = {}) {
+  clearTranslateSegmentTimer();
+  const recorder = translateRecorder;
+  translateRecorder = null;
+  if (recorder && recorder.state !== 'inactive') {
+    await new Promise((resolve) => {
+      recorder.addEventListener('stop', resolve, { once: true });
+      try {
+        recorder.stop();
+      } catch {
+        resolve();
+      }
+    });
+  }
+  if (releaseStream && translateMediaStream) {
+    translateMediaStream.getTracks().forEach((t) => t.stop());
+    translateMediaStream = null;
+  }
+  if (releaseStream) setTranslateListeningUi(false);
+  if (!silent && releaseStream) {
+    setTranslateStatus(listeningStoppedMessage());
+  }
+}
+
+function listeningStoppedMessage() {
+  return '통역을 중지했습니다. 스크롤로 이전 번역을 볼 수 있습니다.';
+}
+
+async function beginTranslateSegment() {
+  if (!translateListening || !translateMediaStream) return;
+  if (translateRecorder && translateRecorder.state !== 'inactive') return;
+
+  const mimeType = pickRecorderMimeType();
+  const isKojaHold = activeTranslateDirection === 'ko2ja';
+  translateChunks = [];
+  try {
+    translateRecorder = mimeType
+      ? new MediaRecorder(translateMediaStream, { mimeType })
+      : new MediaRecorder(translateMediaStream);
+  } catch (err) {
+    console.error(err);
+    setTranslateStatus('녹음을 시작할 수 없습니다.');
+    await stopTranslateRecording({ silent: true });
+    return;
+  }
+
+  const recordedMime = translateRecorder.mimeType || mimeType || 'audio/webm';
+  translateRecorder.addEventListener('dataavailable', (e) => {
+    if (e.data?.size) translateChunks.push(e.data);
+  });
+  translateRecorder.addEventListener('stop', () => {
+    const recorded = new Blob(translateChunks, { type: recordedMime });
+    translateChunks = [];
+    if (isKojaHold) {
+      if (recorded.size > 800) {
+        submitTranslateAudio(recorded, { continueListening: false }).catch(
+          (err) => {
+            console.error(err);
+            setTranslateStatus(
+              '음성 변환 중 오류가 발생했습니다.',
+              'ko2ja',
+            );
+          },
+        );
+      } else {
+        setTranslateStatus(
+          '말이 거의 감지되지 않았습니다. 마이크를 누른 채 다시 말해 주세요.',
+          'ko2ja',
+        );
+      }
+      return;
+    }
+    const shouldContinue = translateListening;
+    if (recorded.size > 800) {
+      submitTranslateAudio(recorded, { continueListening: shouldContinue }).catch(
+        (err) => {
+          console.error(err);
+          setTranslateStatus('음성 변환 중 오류가 발생했습니다.');
+          if (shouldContinue) scheduleNextTranslateSegment();
+        },
+      );
+    } else if (shouldContinue) {
+      scheduleNextTranslateSegment();
+    }
+  });
+
+  translateRecorder.start(200);
+  setTranslateStatus(
+    isKojaHold
+      ? '듣는 중… 한국어로 말씀해 주세요. (손을 떼면 번역)'
+      : '듣는 중… 일본어로 말씀해 주세요.',
+  );
+  clearTranslateSegmentTimer();
+  if (!isKojaHold) {
+    translateSegmentTimer = setTimeout(() => {
+      rotateTranslateSegment().catch((err) => console.error(err));
+    }, TRANSLATE_SEGMENT_MS);
+  }
+}
+
+async function rotateTranslateSegment() {
+  if (!translateListening) return;
+  if (activeTranslateDirection === 'ko2ja') return;
+  const recorder = translateRecorder;
+  if (!recorder || recorder.state === 'inactive') {
+    await beginTranslateSegment();
+    return;
+  }
+  // Keep mic stream; only cut the current segment.
+  translateRecorder = null;
+  clearTranslateSegmentTimer();
+  await new Promise((resolve) => {
+    recorder.addEventListener('stop', resolve, { once: true });
+    try {
+      recorder.stop();
+    } catch {
+      resolve();
+    }
+  });
+}
+
+function scheduleNextTranslateSegment() {
+  if (!translateListening) return;
+  if (activeTranslateDirection === 'ko2ja') return;
+  if (translateBusy) {
+    translatePendingRestart = true;
+    return;
+  }
+  beginTranslateSegment().catch((err) => console.error(err));
+}
+
+async function startTranslateListening(direction) {
+  if (direction === 'ja2ko' || direction === 'ko2ja') {
+    activeTranslateDirection = direction;
+  }
+  if (direction === 'ko2ja') {
+    // 한일은 push-to-talk 전용
+    return;
+  }
+  if (!navigator.mediaDevices?.getUserMedia) {
+    setTranslateStatus('이 브라우저는 마이크 녹음을 지원하지 않습니다.');
+    return;
+  }
+  if (translateListening) {
+    await stopTranslateRecording({ releaseStream: true });
+    return;
+  }
+
+  setTranslateStatus('마이크 권한을 요청하는 중…');
+  try {
+    translateMediaStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        channelCount: 1,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    setTranslateStatus('마이크 권한이 필요합니다. 브라우저 설정을 확인해 주세요.');
+    return;
+  }
+
+  setTranslateListeningUi(true);
+  await beginTranslateSegment();
+}
+
+/** @type {number | null} */
+let kojaPointerId = null;
+let kojaHoldActive = false;
+
+async function startKojaPushToTalk(event) {
+  if (translateBusy || kojaHoldActive) return;
+  if (event.pointerType === 'mouse' && event.button !== 0) return;
+  activeTranslateDirection = 'ko2ja';
+  if (!navigator.mediaDevices?.getUserMedia) {
+    setTranslateStatus(
+      '이 브라우저는 마이크 녹음을 지원하지 않습니다.',
+      'ko2ja',
+    );
+    return;
+  }
+
+  kojaHoldActive = true;
+  kojaPointerId = event.pointerId;
+  try {
+    translateKojaRecord?.setPointerCapture?.(event.pointerId);
+  } catch {
+    /* ignore */
+  }
+
+  setTranslateStatus('마이크 권한을 요청하는 중…', 'ko2ja');
+  try {
+    if (!translateMediaStream) {
+      translateMediaStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          channelCount: 1,
+        },
+      });
+    }
+  } catch (err) {
+    console.error(err);
+    kojaHoldActive = false;
+    kojaPointerId = null;
+    setTranslateStatus(
+      '마이크 권한이 필요합니다. 브라우저 설정을 확인해 주세요.',
+      'ko2ja',
+    );
+    return;
+  }
+
+  if (!kojaHoldActive) {
+    // Released before mic ready
+    await stopTranslateRecording({ silent: true, releaseStream: true });
+    return;
+  }
+
+  setTranslateListeningUi(true);
+  await beginTranslateSegment();
+}
+
+async function endKojaPushToTalk(event) {
+  if (!kojaHoldActive) return;
+  if (
+    event &&
+    kojaPointerId != null &&
+    event.pointerId != null &&
+    event.pointerId !== kojaPointerId
+  ) {
+    return;
+  }
+  kojaHoldActive = false;
+  kojaPointerId = null;
+  translateListening = false;
+  clearTranslateSegmentTimer();
+  const recorder = translateRecorder;
+  translateRecorder = null;
+  setTranslateListeningUi(false);
+
+  if (recorder && recorder.state !== 'inactive') {
+    setTranslateStatus('한국어 → 일본어 번역 중…', 'ko2ja');
+    await new Promise((resolve) => {
+      recorder.addEventListener('stop', resolve, { once: true });
+      try {
+        recorder.stop();
+      } catch {
+        resolve();
+      }
+    });
+  } else {
+    setTranslateStatus(
+      '마이크를 누른 채 말한 뒤 손을 떼 주세요.',
+      'ko2ja',
+    );
+  }
+
+  if (translateMediaStream) {
+    translateMediaStream.getTracks().forEach((t) => t.stop());
+    translateMediaStream = null;
+  }
+}
+
+async function submitTranslateAudio(blob, { continueListening = false } = {}) {
+  const direction = activeTranslateDirection;
+  const cfg = window.APP_CONFIG || {};
+  const url =
+    cfg.apiTranscribeUrl ||
+    (cfg.apiGatewayUrl
+      ? `${String(cfg.apiGatewayUrl).replace(/\/$/, '')}/transcribe`
+      : '');
+  if (!url) {
+    setTranslateStatus('변환 API가 없습니다. installer로 배포한 뒤 이용해 주세요.');
+    if (continueListening) scheduleNextTranslateSegment();
+    return;
+  }
+
+  translateBusy = true;
+  setTranslateStatus(
+    direction === 'ko2ja'
+      ? '한국어 받아쓰기 → 일본어·발음 번역 중…'
+      : '한국어로 번역하는 중…',
+  );
+  try {
+    let wavBlob;
+    try {
+      wavBlob = await blobToWav(blob);
+    } catch (err) {
+      console.error(err);
+      setTranslateStatus(
+        direction === 'ko2ja'
+          ? '오디오 변환에 실패했습니다. 다시 눌러 말해 주세요.'
+          : '오디오 변환에 실패했습니다. 계속 듣는 중…',
+      );
+      return;
+    }
+
+    const audioBase64 = await blobToBase64(wavBlob);
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        audio: audioBase64,
+        format: 'wav',
+        direction,
+        language: direction === 'ko2ja' ? 'ko' : 'ja',
+        targetLanguage: direction === 'ko2ja' ? 'ja' : 'ko',
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setTranslateStatus(
+        data.detail || data.error || `변환 실패 (HTTP ${res.status})`,
+      );
+      return;
+    }
+
+    if (direction === 'ko2ja') {
+      const korean = (data.korean || '').trim();
+      const japanese = (data.japanese || data.text || '').trim();
+      const pronunciation = (data.pronunciation || '').trim();
+      if (korean || japanese) {
+        await saveAndShowTranslation({
+          direction: 'ko2ja',
+          korean,
+          japanese,
+          pronunciation,
+          modelId: data.modelId,
+        });
+        setTranslateStatus(
+          '번역 완료. 스피커 버튼을 눌러 일본어를 들으세요.',
+          'ko2ja',
+        );
+      } else {
+        setTranslateStatus(
+          '음성을 인식하지 못했습니다. 다시 눌러 말해 주세요.',
+          'ko2ja',
+        );
+      }
+      return;
+    }
+
+    const korean = (data.korean || data.text || '').trim();
+    if (korean) {
+      await saveAndShowTranslation({
+        direction: 'ja2ko',
+        korean,
+        modelId: data.modelId,
+      });
+      setTranslateStatus(
+        continueListening
+          ? '번역 반영됨. 계속 듣는 중…'
+          : '번역이 완료되었습니다.',
+      );
+    } else {
+      setTranslateStatus(
+        continueListening
+          ? '이번 구간은 말이 감지되지 않았습니다. 계속 듣는 중…'
+          : '음성을 인식하지 못했습니다.',
+      );
+    }
+  } finally {
+    translateBusy = false;
+    if (continueListening || translatePendingRestart) {
+      translatePendingRestart = false;
+      scheduleNextTranslateSegment();
+    }
+  }
+}
+
+translateRecord?.addEventListener('click', () => {
+  startTranslateListening('ja2ko').catch((err) => {
+    console.error(err);
+    setTranslateStatus('통역 중 오류가 발생했습니다.', 'ja2ko');
+  });
+});
+
+if (translateKojaRecord) {
+  translateKojaRecord.classList.add('hold-mode');
+  translateKojaRecord.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    startKojaPushToTalk(e).catch((err) => {
+      console.error(err);
+      setTranslateStatus('통역 중 오류가 발생했습니다.', 'ko2ja');
+    });
+  });
+  translateKojaRecord.addEventListener('pointerup', (e) => {
+    e.preventDefault();
+    endKojaPushToTalk(e).catch((err) => console.error(err));
+  });
+  translateKojaRecord.addEventListener('pointercancel', (e) => {
+    endKojaPushToTalk(e).catch((err) => console.error(err));
+  });
+  translateKojaRecord.addEventListener('lostpointercapture', (e) => {
+    endKojaPushToTalk(e).catch((err) => console.error(err));
+  });
+  translateKojaRecord.addEventListener('contextmenu', (e) => e.preventDefault());
+}
 
 placePhotoClose?.addEventListener('click', () => {
   hidePlacePhotoCard();

@@ -254,13 +254,53 @@ def create_lambda_execution_role(role_name: str) -> str:
             }
         ],
     }
-    return create_iam_role(
+    role_arn = create_iam_role(
         role_name,
         assume_role_policy,
         managed_policies=[
             "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
         ],
     )
+    attach_inline_policy(
+        role_name,
+        f"{project_name}-bedrock-voxtral",
+        {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Sid": "InvokeVoxtral",
+                    "Effect": "Allow",
+                    "Action": [
+                        "bedrock:InvokeModel",
+                        "bedrock:InvokeModelWithResponseStream",
+                    ],
+                    "Resource": [
+                        f"arn:aws:bedrock:{region}::foundation-model/mistral.voxtral-small-24b-2507",
+                        f"arn:aws:bedrock:{region}::foundation-model/mistral.voxtral-mini-3b-2507",
+                    ],
+                }
+            ],
+        },
+    )
+    attach_inline_policy(
+        role_name,
+        f"{project_name}-polly-speak",
+        {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Sid": "PollySynthesize",
+                    "Effect": "Allow",
+                    "Action": [
+                        "polly:SynthesizeSpeech",
+                        "polly:DescribeVoices",
+                    ],
+                    "Resource": "*",
+                }
+            ],
+        },
+    )
+    return role_arn
 
 
 def package_lambda_api(source_dir: str) -> bytes:
@@ -301,6 +341,7 @@ def deploy_lambda_api(role_arn: str) -> str:
     environment = {
         "PROJECT_NAME": project_name,
         "BUCKET_NAME": bucket_name,
+        "VOXTRAL_MODEL_ID": "mistral.voxtral-small-24b-2507",
     }
 
     if not lambda_function_exists(lambda_api_name):
@@ -312,9 +353,9 @@ def deploy_lambda_api(role_arn: str) -> str:
                     Role=role_arn,
                     Handler="lambda_function.lambda_handler",
                     Code={"ZipFile": zip_bytes},
-                    Description=f"{project_name} API (health, tours)",
-                    Timeout=15,
-                    MemorySize=256,
+                    Description=f"{project_name} API (health, tours, transcribe, speak)",
+                    Timeout=29,
+                    MemorySize=512,
                     Environment={"Variables": environment},
                     Tags={"Project": project_name},
                 )
@@ -349,8 +390,8 @@ def deploy_lambda_api(role_arn: str) -> str:
         Role=role_arn,
         Handler="lambda_function.lambda_handler",
         Runtime=lambda_python_runtime,
-        Timeout=15,
-        MemorySize=256,
+        Timeout=29,
+        MemorySize=512,
         Environment={"Variables": environment},
     )
     wait_for_lambda_ready(lambda_api_name)
@@ -387,7 +428,7 @@ def create_api_gateway(lambda_arn: str) -> Dict[str, str]:
             Description=f"{project_name} public API",
             CorsConfiguration={
                 "AllowOrigins": ["*"],
-                "AllowMethods": ["GET", "OPTIONS"],
+                "AllowMethods": ["GET", "POST", "OPTIONS"],
                 "AllowHeaders": ["content-type", "authorization"],
                 "MaxAge": 300,
             },
@@ -402,6 +443,16 @@ def create_api_gateway(lambda_arn: str) -> Dict[str, str]:
     for integ in integrations:
         if integ.get("IntegrationUri") == lambda_arn:
             integration_id = integ["IntegrationId"]
+            try:
+                apigatewayv2_client.update_integration(
+                    ApiId=api_id,
+                    IntegrationId=integration_id,
+                    IntegrationUri=lambda_arn,
+                    PayloadFormatVersion="2.0",
+                    TimeoutInMillis=29000,
+                )
+            except ClientError as e:
+                logger.warning(f"update_integration timeout: {e}")
             break
     if not integration_id and integrations:
         for integ in integrations:
@@ -412,7 +463,7 @@ def create_api_gateway(lambda_arn: str) -> Dict[str, str]:
                     IntegrationId=integration_id,
                     IntegrationUri=lambda_arn,
                     PayloadFormatVersion="2.0",
-                    TimeoutInMillis=15000,
+                    TimeoutInMillis=29000,
                 )
                 break
     if not integration_id:
@@ -421,16 +472,39 @@ def create_api_gateway(lambda_arn: str) -> Dict[str, str]:
             IntegrationType="AWS_PROXY",
             IntegrationUri=lambda_arn,
             PayloadFormatVersion="2.0",
-            TimeoutInMillis=15000,
+            TimeoutInMillis=29000,
         )
         integration_id = integ["IntegrationId"]
         logger.info(f"✓ Integration created: {integration_id}")
+
+    # Keep CORS permissive for browser POST /transcribe and /speak
+    try:
+        apigatewayv2_client.update_api(
+            ApiId=api_id,
+            CorsConfiguration={
+                "AllowOrigins": ["*"],
+                "AllowMethods": ["GET", "POST", "OPTIONS"],
+                "AllowHeaders": ["content-type", "authorization"],
+                "MaxAge": 300,
+            },
+        )
+    except ClientError as e:
+        logger.warning(f"update_api CORS: {e}")
 
     existing_routes = {
         r["RouteKey"]: r["RouteId"]
         for r in (apigatewayv2_client.get_routes(ApiId=api_id).get("Items") or [])
     }
-    for route_key in ("GET /health", "GET /tours", "OPTIONS /health", "OPTIONS /tours"):
+    for route_key in (
+        "GET /health",
+        "GET /tours",
+        "POST /transcribe",
+        "POST /speak",
+        "OPTIONS /health",
+        "OPTIONS /tours",
+        "OPTIONS /transcribe",
+        "OPTIONS /speak",
+    ):
         if route_key in existing_routes:
             continue
         try:
@@ -470,12 +544,16 @@ def create_api_gateway(lambda_arn: str) -> Dict[str, str]:
 
     health_url = f"{api_endpoint}/health"
     tours_url = f"{api_endpoint}/tours"
+    transcribe_url = f"{api_endpoint}/transcribe"
+    speak_url = f"{api_endpoint}/speak"
     logger.info(f"✓ API ready: health={health_url}")
     return {
         "apiGatewayId": api_id,
         "apiGatewayUrl": api_endpoint,
         "apiGatewayHealthUrl": health_url,
         "apiToursUrl": tours_url,
+        "apiTranscribeUrl": transcribe_url,
+        "apiSpeakUrl": speak_url,
         "lambdaApiName": lambda_api_name,
         "lambdaApiArn": lambda_arn,
     }
@@ -647,6 +725,8 @@ def write_web_config_js(
     api_gateway_url: str = "",
     api_gateway_health_url: str = "",
     api_tours_url: str = "",
+    api_transcribe_url: str = "",
+    api_speak_url: str = "",
     website_url: str = "",
 ) -> str:
     js_dir = os.path.join(script_dir, "js")
@@ -664,6 +744,16 @@ def write_web_config_js(
         or prior.get("apiToursUrl")
         or (f"{api_base}/tours" if api_base else "")
     )
+    transcribe = (
+        api_transcribe_url
+        or prior.get("apiTranscribeUrl")
+        or (f"{api_base}/transcribe" if api_base else "")
+    )
+    speak = (
+        api_speak_url
+        or prior.get("apiSpeakUrl")
+        or (f"{api_base}/speak" if api_base else "")
+    )
     site = website_url or prior.get("websiteUrl") or prior.get("cloudfrontUrl") or ""
     content = (
         "// Generated by installer.py — do not edit by hand for deploy.\n"
@@ -672,6 +762,8 @@ def write_web_config_js(
         f"  apiGatewayUrl: {json.dumps(api_base)},\n"
         f"  apiGatewayHealthUrl: {json.dumps(health)},\n"
         f"  apiToursUrl: {json.dumps(tours)},\n"
+        f"  apiTranscribeUrl: {json.dumps(transcribe)},\n"
+        f"  apiSpeakUrl: {json.dumps(speak)},\n"
         f"  websiteUrl: {json.dumps(site)},\n"
         "};\n"
     )
@@ -706,11 +798,18 @@ def upload_web_to_s3(
     api_gateway_url: str = "",
     api_gateway_health_url: str = "",
     api_tours_url: str = "",
+    api_transcribe_url: str = "",
+    api_speak_url: str = "",
     website_url: str = "",
 ) -> int:
     logger.info(f"Uploading web assets → s3://{s3_bucket_name}/{WEB_S3_PREFIX}/")
     write_web_config_js(
-        api_gateway_url, api_gateway_health_url, api_tours_url, website_url
+        api_gateway_url,
+        api_gateway_health_url,
+        api_tours_url,
+        api_transcribe_url,
+        api_speak_url,
+        website_url,
     )
 
     uploaded = 0
@@ -768,6 +867,8 @@ def deploy_web_stack(
     api_gateway_url: str = "",
     api_gateway_health_url: str = "",
     api_tours_url: str = "",
+    api_transcribe_url: str = "",
+    api_speak_url: str = "",
 ) -> Dict[str, str]:
     discovered = discover_web_resources()
     target_bucket = s3_bucket_name or discovered.get("bucketName") or bucket_name
@@ -778,6 +879,8 @@ def deploy_web_stack(
     api_base = api_gateway_url or prior.get("apiGatewayUrl") or ""
     health = api_gateway_health_url or prior.get("apiGatewayHealthUrl") or ""
     tours = api_tours_url or prior.get("apiToursUrl") or ""
+    transcribe = api_transcribe_url or prior.get("apiTranscribeUrl") or ""
+    speak = api_speak_url or prior.get("apiSpeakUrl") or ""
 
     cf = create_cloudfront_distribution(target_bucket)
     website_url = f"https://{cf['domain']}"
@@ -786,6 +889,8 @@ def deploy_web_stack(
         api_gateway_url=api_base,
         api_gateway_health_url=health,
         api_tours_url=tours,
+        api_transcribe_url=transcribe,
+        api_speak_url=speak,
         website_url=website_url,
     )
     invalidate_cloudfront(cf["id"])
@@ -862,6 +967,8 @@ def main():
                 api_gateway_url=prior.get("apiGatewayUrl", ""),
                 api_gateway_health_url=prior.get("apiGatewayHealthUrl", ""),
                 api_tours_url=prior.get("apiToursUrl", ""),
+                api_transcribe_url=prior.get("apiTranscribeUrl", ""),
+                api_speak_url=prior.get("apiSpeakUrl", ""),
             )
             resource_info.update(web)
             resource_info["deploymentStatus"] = "deployed"
@@ -883,6 +990,8 @@ def main():
                 api_gateway_url=api_info.get("apiGatewayUrl", ""),
                 api_gateway_health_url=api_info.get("apiGatewayHealthUrl", ""),
                 api_tours_url=api_info.get("apiToursUrl", ""),
+                api_transcribe_url=api_info.get("apiTranscribeUrl", ""),
+                api_speak_url=api_info.get("apiSpeakUrl", ""),
             )
             resource_info.update(web)
 
@@ -897,6 +1006,10 @@ def main():
             logger.info(f"  Health:  {resource_info['apiGatewayHealthUrl']}")
         if resource_info.get("apiToursUrl"):
             logger.info(f"  Tours:   {resource_info['apiToursUrl']}")
+        if resource_info.get("apiTranscribeUrl"):
+            logger.info(f"  STT:     {resource_info['apiTranscribeUrl']}")
+        if resource_info.get("apiSpeakUrl"):
+            logger.info(f"  Speak:   {resource_info['apiSpeakUrl']}")
         logger.info("=" * 60)
     except Exception:
         resource_info["deploymentStatus"] = "failed"
