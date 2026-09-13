@@ -1104,10 +1104,13 @@ function fitTourBounds(routesOrRoute, stops) {
   }
 
   const narrow = window.matchMedia('(max-width: 900px)').matches;
+  const panelOpen = activeSidePanel === 'tour' && !tourPanel?.hidden;
   map.fitBounds(bounds, {
     padding: narrow
-      ? { top: 200, bottom: 40, left: 24, right: 24 }
-      : { top: 120, bottom: 80, left: 420, right: 80 },
+      ? { top: 80, bottom: 40, left: 24, right: 24 }
+      : panelOpen
+        ? { top: 120, bottom: 80, left: 420, right: 80 }
+        : { top: 100, bottom: 80, left: 80, right: 80 },
     pitch: is3d ? 55 : 0,
     bearing: -18,
     duration: 1600,
@@ -1235,6 +1238,9 @@ tourFit.addEventListener('click', () => {
   const route = getRouteFeature(tourSelect.value);
   const routes = getChildRoutes(route);
   const stops = getStopFeatures(tourSelect.value);
+  closePlacePopup();
+  closeStopMarkerPopups();
+  setTourMenuOpen(false);
   if (routes.length) fitTourBounds(routes, stops);
 });
 

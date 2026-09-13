@@ -43,7 +43,17 @@ api_name = "api-travel-map"
 lambda_python_runtime = "python3.13"
 
 WEB_S3_PREFIX = "web"
-WEB_UPLOAD_ENTRIES = ("index.html", "favicon.svg", "css", "js", "data", "photos")
+WEB_UPLOAD_ENTRIES = (
+    "index.html",
+    "favicon.ico",
+    "favicon.svg",
+    "favicon-32.png",
+    "apple-touch-icon.png",
+    "css",
+    "js",
+    "data",
+    "photos",
+)
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 lambda_api_dir = os.path.join(script_dir, "lambda-api")
