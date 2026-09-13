@@ -166,3 +166,7 @@ travel-map/
 복장을 선택하면 여행기간에 주의할 복장과 날씨에 대한 정보를 확인할 수 있습니다.
 
 <img width="413" height="658" alt="image" src="https://github.com/user-attachments/assets/d1ba37ec-9af6-4a88-ab26-a73fc13a96b7" />
+
+전체화면에서 보여주는 여행정보는 아래와 같습니다.
+
+<img width="1424" height="744" alt="image" src="https://github.com/user-attachments/assets/6a2ac2ec-2b6b-4111-89ee-73c413312405" />
