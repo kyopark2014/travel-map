@@ -1,12 +1,10 @@
-# 3D Terrain Map
+# Travel Map
 
 MapLibre GL JS + WebGL로 위성·지형을 브라우저에서 직접 렌더링하는 정적 웹 앱입니다.
 
+
 ## 시스템 구성
 
-<p align="center">
-  <img src="docs/architecture.svg" alt="travel-map system architecture" width="100%"/>
-</p>
 
 | 계층 | 구성 |
 |------|------|
@@ -39,12 +37,49 @@ MapLibre GL JS + WebGL로 위성·지형을 브라우저에서 직접 렌더링�
 | 경도 | `141.6925` |
 | MapLibre center | `[141.6925, 42.77528]` |
 
+## 상세 구현
+
+3D 화면은 **브라우저**에서 MapLibre GL JS가 WebGL로 그립니다. Lambda(`lambda-api-travel-map`)는 **투어 경로 GeoJSON을 JSON으로 내려주는 얇은 API**이며, 타일·고도·카메라 연산은 모두 클라이언트(`js/app.js`, `js/tour.js`, `js/measure.js`)에서 처리합니다.
+
+### 브라우저에서 3D 지형을 그리는 방식
+
+1. **지도 초기화** — `maplibregl.Map`에 Esri 위성·Topo 래스터 타일과 AWS Terrarium DEM(`raster-dem`, `encoding: 'terrarium'`)을 등록하고, `terrain: { source: 'terrarium', exaggeration }`으로 메시를 올립니다. 초기 `pitch`·`bearing`으로 기울어진 3D 시점을 만듭니다.
+2. **타일 로딩** — 보이는 영역에 맞춰 Esri에서 베이스맵 PNG, S3 `elevation-tiles-prod`에서 고도 타일을 가져와 GPU에서 합성합니다. (Lambda·API Gateway와 무관)
+3. **2D/3D·고도 배율** — UI 슬라이더와 3D 토글이 `map.setTerrain()` / `map.easeTo({ pitch })`를 바꿉니다. 측정 도구는 클릭 좌표로 GeoJSON 라인을 올려 Haversine 거리를 표시합니다.
+4. **투어 시각화** — `GET /tours`(또는 로컬 `data/tours.geojson`)로 받은 FeatureCollection에서 `kind: route` / `kind: stop`을 골라 `tour-route`·`tour-stops` 소스에 line/circle 레이어를 그립니다. **투어 재생**은 `createPathTour(map)`이 경유지 순서대로 `map.flyTo`로 카메라만 이동시키며, 지형 위를 따라가는 연출입니다.
+
+### API 사용 흐름 (HTTP API Gateway → Lambda)
+
+배포 시 `installer.py`가 Lambda ZIP(`lambda-api/` + 번들 `tours.geojson`)을 올리고, HTTP API `api-travel-map`을 **Lambda 프록시 통합**으로 연결합니다. 엔드포인트와 역할은 다음과 같습니다.
+
+| 메서드·경로 | Lambda 동작 | 프론트 사용처 |
+|-------------|-------------|----------------|
+| `GET /health` | `{ status, service, region }` JSON | 모니터링·헬스 확인 (선택) |
+| `GET /tours` | 패키징된 `tours.geojson` 전체를 JSON 응답 (CORS `*`) | 지도 `load` 후 투어 드롭다운·경로 레이어 |
+| `OPTIONS` | CORS preflight | 브라우저 cross-origin `fetch` |
+
+프론트는 `index.html`이 로드하는 `js/config.js`의 `window.APP_CONFIG.apiToursUrl`(배포 시 API Gateway URL + `/tours`)을 사용합니다.
+
+```javascript
+// js/app.js (지도 load 이후)
+const cfg = window.APP_CONFIG || {};
+const toursUrl = cfg.apiToursUrl || 'data/tours.geojson?...';
+const res = await fetch(toursUrl, { cache: 'no-store' });
+tourData = await res.json();
+```
+
+- **배포 환경**: CloudFront/S3에서 정적 앱을 열고, 투어 데이터만 API Gateway 도메인으로 `fetch`합니다. GeoJSON 원본은 S3 정적 `data/`와 Lambda 번들 두 곳에 있을 수 있으나, 운영 UI는 **`apiToursUrl` 우선**입니다.
+- **로컬 개발**: `config.js`에 API URL이 없거나 서버만 띄운 경우 **`data/tours.geojson` 폴백**으로 동일한 GeoJSON을 읽어 3D 표시·투어 UI를 검증할 수 있습니다.
+
+지오코딩(Nominatim)·위성/DEM 타일(Esri·AWS)은 **브라우저가 각 공급자에 직접 요청**하며, Lambda 경유하지 않습니다.
+
 ## 실행 방법
 
 로컬 HTTP 서버로 열어주세요 (`file://` 에서는 GeoJSON fetch가 막힐 수 있습니다).
 
 ```bash
-cd map
+git clone https://github.com/kyopark2014/travel-map.git
+cd travel-map
 python3 -m http.server 8080
 ```
 
@@ -73,7 +108,7 @@ DEM 소스는 **`encoding: 'terrarium'`** 이 필수입니다. 기본 Mapbox Ter
 `project_name` = **travel-map**
 
 ```bash
-cd map
+cd travel-map
 python3 installer.py              # 전체 (S3, Lambda API, CloudFront, 정적 업로드)
 python3 installer.py --web-only   # 정적 웹만 재업로드 + CloudFront invalidate
 python3 uninstaller.py -y         # 리소스 삭제
@@ -91,7 +126,7 @@ python3 uninstaller.py -y         # 리소스 삭제
 ## 프로젝트 구조
 
 ```
-map/
+travel-map/
   index.html
   css/styles.css
   js/app.js
@@ -104,7 +139,12 @@ map/
   README.md
 ```
 
-## 참고
+### 참고
 
 - Esri / AWS 공개 타일은 데모·개인 실험용으로 적합합니다. 상용·대량 트래픽에는 ToS 확인 또는 자체 타일/프록시를 검토하세요.
 - 투어 경로 좌표는 시연용 근사치이며 실제 도로/철도 노선과 다를 수 있습니다.
+
+## 실행 결과
+
+전체 여행 정보는 아래와 같이 투어에서 확인할 수 있습니다.
+
