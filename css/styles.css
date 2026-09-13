@@ -855,6 +855,8 @@ select {
   box-shadow: var(--shadow);
   color: var(--ink);
   font-weight: 700;
+  font-size: 12px;
+  line-height: 1;
 }
 
 .icon-btn.active {

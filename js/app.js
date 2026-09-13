@@ -72,7 +72,9 @@ const settingsClose = document.getElementById('settings-close');
 const btnResetNorth = document.getElementById('btn-reset-north');
 const btnZoomIn = document.getElementById('btn-zoom-in');
 const btnZoomOut = document.getElementById('btn-zoom-out');
+const btnToggleBasemap = document.getElementById('btn-toggle-basemap');
 const btnToggle3d = document.getElementById('btn-toggle-3d');
+const btnCurrentLocation = document.getElementById('btn-current-location');
 
 const ITINERARY_MD_URL = 'data/hokkaido-itinerary-20261008.md';
 const CLOTHING_MD_URL = 'data/hokkaido-weather-clothing-20261008.md';
@@ -80,6 +82,7 @@ const CLOTHING_MD_URL = 'data/hokkaido-weather-clothing-20261008.md';
 let currentMarker = null;
 let stopMarkers = [];
 let is3d = true;
+let currentBasemap = 'satellite';
 let tourData = null;
 let activeTourId = null;
 let exaggeration = 1.5;
@@ -526,7 +529,9 @@ function bindPlacePopupClick(popup, name, detail) {
       e.preventDefault();
       e.stopPropagation();
       const entry = resolvePlacePhoto(name);
-      if (entry) openPlacePhotoPanel(name, detail, entry);
+      if (!entry) return;
+      closePlacePopup();
+      openPlacePhotoPanel(name, detail, entry);
     };
     hit.addEventListener('click', open);
     hit.addEventListener('keydown', (e) => {
@@ -620,6 +625,7 @@ function applyExaggeration(value) {
 
 function setBasemap(mode) {
   const showSatellite = mode === 'satellite';
+  currentBasemap = showSatellite ? 'satellite' : 'topo';
   map.setLayoutProperty(
     'satellite',
     'visibility',
@@ -627,8 +633,15 @@ function setBasemap(mode) {
   );
   map.setLayoutProperty('topo', 'visibility', showSatellite ? 'none' : 'visible');
   document.querySelectorAll('[data-basemap]').forEach((btn) => {
-    btn.classList.toggle('active', btn.dataset.basemap === mode);
+    btn.classList.toggle('active', btn.dataset.basemap === currentBasemap);
   });
+  if (btnToggleBasemap) {
+    btnToggleBasemap.textContent = showSatellite ? '위성' : '지형';
+    btnToggleBasemap.classList.toggle('active', showSatellite);
+    btnToggleBasemap.title = showSatellite
+      ? '지형 지도로 전환'
+      : '위성 영상으로 전환';
+  }
 }
 
 function set3dMode(next) {
@@ -1174,4 +1187,82 @@ btnZoomOut.addEventListener('click', () => {
 
 btnToggle3d.addEventListener('click', () => {
   set3dMode(!is3d);
+});
+
+btnToggleBasemap?.addEventListener('click', () => {
+  setBasemap(currentBasemap === 'satellite' ? 'topo' : 'satellite');
+});
+
+async function reverseGeocode(lat, lng) {
+  try {
+    const url = new URL('https://nominatim.openstreetmap.org/reverse');
+    url.searchParams.set('lat', String(lat));
+    url.searchParams.set('lon', String(lng));
+    url.searchParams.set('format', 'json');
+    const res = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.display_name || null;
+  } catch {
+    return null;
+  }
+}
+
+async function goToCurrentLocation() {
+  if (!navigator.geolocation) {
+    searchStatus.textContent = '이 브라우저는 현재 위치를 지원하지 않습니다.';
+    setSidePanel('search');
+    return;
+  }
+
+  btnCurrentLocation?.classList.add('active');
+  btnCurrentLocation && (btnCurrentLocation.disabled = true);
+  searchStatus.textContent = '현재 위치를 확인하는 중…';
+
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const accuracy = Math.round(pos.coords.accuracy || 0);
+      const address = await reverseGeocode(lat, lng);
+      const name = address ? address.split(',')[0].trim() : '현재 위치';
+      const detail = [
+        address || null,
+        `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+        accuracy ? `정확도 약 ${accuracy}m` : null,
+      ]
+        .filter(Boolean)
+        .join(' · ');
+
+      if (tour.isRunning()) {
+        tour.stop();
+        syncTourButtons(false);
+      }
+      flyToPlace({ lng, lat, name, detail });
+      searchStatus.textContent = `현재 위치: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      btnCurrentLocation?.classList.remove('active');
+      if (btnCurrentLocation) btnCurrentLocation.disabled = false;
+    },
+    (err) => {
+      const messages = {
+        1: '위치 권한이 거부되었습니다. 브라우저 설정에서 허용해 주세요.',
+        2: '현재 위치를 확인할 수 없습니다.',
+        3: '위치 확인 시간이 초과되었습니다.',
+      };
+      searchStatus.textContent =
+        messages[err.code] || '현재 위치를 가져오지 못했습니다.';
+      setSidePanel('search');
+      btnCurrentLocation?.classList.remove('active');
+      if (btnCurrentLocation) btnCurrentLocation.disabled = false;
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 30000,
+    },
+  );
+}
+
+btnCurrentLocation?.addEventListener('click', () => {
+  goToCurrentLocation();
 });
