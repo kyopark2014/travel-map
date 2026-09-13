@@ -281,6 +281,12 @@ placePhotoNext?.addEventListener('click', (e) => {
   stepPlacePhoto(1);
 });
 
+placePhotoImg?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (!activePhotoEntry?.images || activePhotoEntry.images.length < 2) return;
+  stepPlacePhoto(1);
+});
+
 placePhotoDots?.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-photo-index]');
   if (!btn || !activePhotoEntry) return;
@@ -476,20 +482,46 @@ function stepPlacePhoto(delta) {
 function placePopupHtml(name, detail, photoName = name) {
   const entry = resolvePlacePhoto(photoName);
   const count = entry?.images?.length || 0;
-  const photo = count
-    ? `<img class="place-photo-thumb" src="${encodeURI(entry.images[0])}" alt="${escapeHtml(name)}" loading="lazy" /><em class="place-photo-count">사진 ${count}장 · 클릭하여 자세히 보기</em>`
+  const thumbSrc =
+    count > 0
+      ? entry.images[Math.floor(Math.random() * count)]
+      : null;
+  const photo = thumbSrc
+    ? `<img class="place-photo-thumb" src="${encodeURI(thumbSrc)}" alt="${escapeHtml(name)}" loading="lazy" /><em class="place-photo-count">사진 ${count}장 · 클릭하여 자세히 보기</em>`
     : '';
-  return `<div class="place-popup-hit" role="button" tabindex="0">${
-    `<strong>${escapeHtml(name)}</strong>${photo}<span>${escapeHtml(detail || '')}</span>`
-  }</div>`;
+  return `
+    <div class="place-popup">
+      <div class="place-popup-head">
+        <strong>${escapeHtml(name)}</strong>
+        <button type="button" class="place-popup-close link-btn">닫기</button>
+      </div>
+      <div class="place-popup-hit" role="button" tabindex="0">
+        ${photo}
+        <span>${escapeHtml(detail || '')}</span>
+      </div>
+    </div>`;
+}
+
+function closePlacePopup() {
+  if (!currentMarker) return;
+  const popup = currentMarker.getPopup();
+  if (popup?.isOpen?.()) currentMarker.togglePopup();
 }
 
 function bindPlacePopupClick(popup, name, detail) {
   const attach = () => {
     const root = popup.getElement();
-    const hit = root?.querySelector('.place-popup-hit');
-    if (!hit || hit.dataset.bound === '1') return;
-    hit.dataset.bound = '1';
+    if (!root || root.dataset.bound === '1') return;
+    root.dataset.bound = '1';
+
+    root.querySelector('.place-popup-close')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closePlacePopup();
+    });
+
+    const hit = root.querySelector('.place-popup-hit');
+    if (!hit) return;
     const open = (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -557,13 +589,15 @@ function escapeHtml(value) {
 }
 
 function flyToPlace({ lng, lat, name, detail }) {
+  // Close tour (and other) side panels so the map bubble is front and center
+  setSidePanel(null);
+
   setPlaceMarker({ lng, lat, name, detail, openPopup: true });
 
   const reopen = () => {
     ensurePlacePopupOpen();
   };
   map.once('moveend', reopen);
-  // Safety: flyTo can be interrupted; keep bubble visible
   setTimeout(reopen, 500);
   setTimeout(reopen, 2000);
 

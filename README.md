@@ -2,6 +2,19 @@
 
 MapLibre GL JS + WebGL로 위성·지형을 브라우저에서 직접 렌더링하는 정적 웹 앱입니다.
 
+## 시스템 구성
+
+<p align="center">
+  <img src="docs/architecture.svg" alt="travel-map system architecture" width="100%"/>
+</p>
+
+| 계층 | 구성 |
+|------|------|
+| 클라이언트 | Browser · MapLibre GL JS (위성·DEM·투어·측정 UI) |
+| 정적 호스팅 | CloudFront (OAI) → S3 `web/` (`index.html`, `css/`, `js/`, `data/`, `photos/`) |
+| API | HTTP API Gateway `api-travel-map` → Lambda `lambda-api-travel-map` (`GET /health`, `GET /tours`) |
+| 외부 | Esri (위성/Topo) · AWS Terrain Tiles (Terrarium DEM) · Nominatim (지오코딩) |
+
 ## 기능
 
 - **3D 지형**: Esri 위성 영상 + Mapzen/AWS Terrain Tiles(Terrarium DEM)
@@ -85,6 +98,9 @@ map/
   js/measure.js
   js/tour.js
   data/tours.geojson
+  docs/architecture.svg
+  lambda-api/
+  installer.py / uninstaller.py
   README.md
 ```
 
