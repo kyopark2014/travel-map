@@ -1,0 +1,794 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "hokkaido-all",
+        "kind": "route",
+        "name": "일본 홋카이도 여행 (전체)",
+        "day_label": "전체",
+        "date": "2026.10.08~10.11 · 3박 4일",
+        "description": "",
+        "distance_km": 292.0,
+        "segments": 4,
+        "is_all": true,
+        "child_ids": [
+          "hokkaido-day1",
+          "hokkaido-day2",
+          "hokkaido-day3",
+          "hokkaido-day4"
+        ],
+        "color": "#111827"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            141.6925,
+            42.77528
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "hokkaido-day1",
+        "kind": "route",
+        "name": "1일차 · 10/8(목) 인천→삿포로",
+        "day_label": "1일",
+        "date": "2026.10.08(목)",
+        "description": "인천(仁川) → 신치토세(新千歳) → 스스키노(すすきの) → ibis Styles 札幌",
+        "distance_km": 42.3,
+        "segments": 2,
+        "color": "#2563eb",
+        "meals": {
+          "breakfast": "—",
+          "lunch": "기내(유료)",
+          "dinner": "대게(ズワイガニ)+샤브샤브(しゃぶしゃぶ)+노미호다이(飲み放題) 60분"
+        },
+        "hotel": "이비스 스타일스 삿포로(ibis Styles 札幌) · 슈페리어 트윈",
+        "flight": "7C1503 ICN 12:15 → CTS 15:00",
+        "highlight": "스스키노 자유쇼핑 · 노미호다이 석식 · 라멘요코초(ラーメン横丁) 추천"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            141.6925,
+            42.77528
+          ],
+          [
+            141.668,
+            42.798
+          ],
+          [
+            141.64,
+            42.825
+          ],
+          [
+            141.612,
+            42.852
+          ],
+          [
+            141.585,
+            42.88
+          ],
+          [
+            141.555,
+            42.91
+          ],
+          [
+            141.525,
+            42.94
+          ],
+          [
+            141.495,
+            42.968
+          ],
+          [
+            141.465,
+            42.995
+          ],
+          [
+            141.435,
+            43.018
+          ],
+          [
+            141.405,
+            43.035
+          ],
+          [
+            141.38,
+            43.045
+          ],
+          [
+            141.362,
+            43.051
+          ],
+          [
+            141.353806,
+            43.05528
+          ],
+          [
+            141.3544,
+            43.053
+          ],
+          [
+            141.355046,
+            43.050211
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "tour_id": "hokkaido-day1",
+        "kind": "stop",
+        "order": 1,
+        "name": "신치토세공항(新千歳空港)",
+        "detail": "CTS · 15:00 도착 · 7C1503",
+        "color": "#2563eb",
+        "day_label": "1일",
+        "time": "15:00",
+        "note": "입국 수속 후 치토세→삿포로 이동(약 1시간)"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          141.6925,
+          42.77528
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "tour_id": "hokkaido-day1",
+        "kind": "stop",
+        "order": 2,
+        "name": "스스키노(すすきの)",
+        "detail": "자유쇼핑 · 홋카이도 최대 번화가",
+        "color": "#2563eb",
+        "day_label": "1일",
+        "time": "저녁",
+        "note": "5,000여 상점 밀집. 한 블록 옆 라멘요코초(ラーメン横丁)·미소라멘 추천. 석식: 대게+샤브샤브+노미호다이 60분"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          141.353806,
+          43.05528
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "tour_id": "hokkaido-day1",
+        "kind": "stop",
+        "order": 3,
+        "name": "이비스 스타일스 삿포로",
+        "detail": "ibis Styles 札幌 · 슈페리어 트윈",
+        "color": "#2563eb",
+        "day_label": "1일",
+        "time": "숙박",
+        "note": "스스키노↔나카지마 공원(中島公園) 사이 / 약 30㎡ 객실"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          141.355046,
+          43.050211
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "hokkaido-day2",
+        "kind": "route",
+        "name": "2일차 · 10/9(금) 삿포로→오타루→죠잔케이",
+        "day_label": "2일",
+        "date": "2026.10.09(금)",
+        "description": "이비스 스타일스 삿포로(ibis Styles 札幌) → 삿포로 시내 → 오타루(小樽) → 죠잔케이(定山渓) 시카노유(鹿の湯)",
+        "distance_km": 79.7,
+        "segments": 6,
+        "color": "#16a34a",
+        "meals": {
+          "breakfast": "호텔 뷔페",
+          "lunch": "오타루(小樽) 스시(寿司) 세트",
+          "dinner": "호텔 뷔페식"
+        },
+        "hotel": "죠잔케이(定山渓) 온천 호텔 시카노유(鹿の湯) · 다다미 또는 트윈(랜덤)",
+        "highlight": "사케 시음(田中酒造) · 오타루 운하·오르골당 · 온천 노천탕"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            141.355046,
+            43.050211
+          ],
+          [
+            141.3544308,
+            43.0607521
+          ],
+          [
+            141.3536,
+            43.0625
+          ],
+          [
+            141.3471,
+            43.0646
+          ],
+          [
+            141.271613,
+            43.088695
+          ],
+          [
+            141.05,
+            43.14
+          ],
+          [
+            141.0137758,
+            43.1863422
+          ],
+          [
+            140.9947,
+            43.1973
+          ],
+          [
+            141.007674,
+            43.190591
+          ],
+          [
+            141.05,
+            43.14
+          ],
+          [
+            141.11,
+            43.06
+          ],
+          [
+            141.13,
+            43.02
+          ],
+          [
+            141.162765,
+            42.965706
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "tour_id": "hokkaido-day2",
+        "kind": "stop",
+        "order": 1,
+        "name": "이비스 스타일스 삿포로",
+        "detail": "ibis Styles 札幌 · 1일차 숙소에서 출발",
+        "color": "#16a34a",
+        "day_label": "2일",
+        "time": "출발",
+        "note": "호텔 조식(뷔페) 후 삿포로 시내 관광 시작"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          141.355046,
+          43.050211
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "tour_id": "hokkaido-day2",
+        "kind": "stop",
+        "order": 2,
+        "name": "오도리 공원(大通公園)",
+        "detail": "삿포로 시내 관광",
+        "color": "#16a34a",
+        "day_label": "2일",
+        "time": "오전",
+        "note": "길이 1.5km 시민공원. 동쪽 끝 삿포로 TV타워(さっぽろテレビ塔)"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          141.3544308,
+          43.0607521
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "tour_id": "hokkaido-day2",
+        "kind": "stop",
+        "order": 3,
+        "name": "홋카이도 시계탑(北海道時計台)",
+        "detail": "차창관광",
+        "color": "#16a34a",
+        "day_label": "2일",
+        "time": "오전",
+        "note": "1878년 삿포로 농학교 연무장, 국가 중요문화재"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          141.3536,
+          43.0625
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "tour_id": "hokkaido-day2",
+        "kind": "stop",
+        "order": 4,
+        "name": "구 홋카이도 도청사(旧北海道庁舎)",
+        "detail": "赤れんが庁舎",
+        "color": "#16a34a",
+        "day_label": "2일",
+        "time": "오전",
+        "note": "1888년 붉은 벽돌관, 네오바로크 양식"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          141.3471,
+          43.0646
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "tour_id": "hokkaido-day2",
+        "kind": "stop",
+        "order": 5,
+        "name": "시로이 코이비토 파크(白い恋人パーク)",
+        "detail": "외관 관광",
+        "color": "#16a34a",
+        "day_label": "2일",
+        "time": "관광",
+        "note": "ISHIYA 白い恋人 테마파크 외관 관광"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          141.271613,
+          43.088695
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "tour_id": "hokkaido-day2",
+        "kind": "stop",
+        "order": 6,
+        "name": "다나카 주조(田中酒造)",
+        "detail": "사케(日本酒) 시음 포함",
+        "color": "#16a34a",
+        "day_label": "2일",
+        "time": "관광",
+        "note": "1899년 창업. 가이드 설명과 함께 사케 시음. 중식: 오타루 스시 세트"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          141.0137758,
+          43.1863422
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "tour_id": "hokkaido-day2",
+        "kind": "stop",
+        "order": 7,
+        "name": "오타루 운하(小樽運河)",
+        "detail": "기타이치 가라스·과자거리",
+        "color": "#16a34a",
+        "day_label": "2일",
+        "time": "오후",
+        "note": "1923년 완성 운하. 北一硝子 유리공방, 六花亭·LeTAO·北菓楼 과자거리"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          140.9947,
+          43.1973
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "tour_id": "hokkaido-day2",
+        "kind": "stop",
+        "order": 8,
+        "name": "오타루 오르골당(小樽オルゴール堂)",
+        "detail": "일본 최대 규모",
+        "color": "#16a34a",
+        "day_label": "2일",
+        "time": "오후",
+        "note": "3만여 점 소장, 1912년부터 이어진 역사"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          141.007674,
+          43.190591
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "tour_id": "hokkaido-day2",
+        "kind": "stop",
+        "order": 9,
+        "name": "호텔 시카노유(鹿の湯)",
+        "detail": "죠잔케이(定山渓) 온천",
+        "color": "#16a34a",
+        "day_label": "2일",
+        "time": "숙박",
+        "note": "료칸풍. 대욕장+사우나+노천탕(露天風呂). 사슴 소프트 아이스크림(BOCCA)"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          141.162765,
+          42.965706
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "hokkaido-day3",
+        "kind": "route",
+        "name": "3일차 · 10/10(토) 죠잔케이→도야→노보리베츠",
+        "day_label": "3일",
+        "date": "2026.10.10(토)",
+        "description": "호텔 시카노유(鹿の湯) → 도야호(洞爺湖) → 쇼와신잔 → 사이로 → 지옥계곡 → 세키스이테이(石水亭)",
+        "distance_km": 112.0,
+        "segments": 5,
+        "color": "#ea580c",
+        "meals": {
+          "breakfast": "호텔 뷔페",
+          "lunch": "가리비(ホタテ) 정식",
+          "dinner": "호텔 일·양식 뷔페"
+        },
+        "hotel": "노보리베츠 세키스이테이(登別 石水亭) · 화양실(和洋室) 업그레이드",
+        "highlight": "도야 유람선 50분 · 사이로 전망대 포토스팟 · BOCCA 요구르트"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            141.162765,
+            42.965706
+          ],
+          [
+            141.12,
+            42.92
+          ],
+          [
+            141.05,
+            42.85
+          ],
+          [
+            140.98,
+            42.78
+          ],
+          [
+            140.92,
+            42.72
+          ],
+          [
+            140.87,
+            42.66
+          ],
+          [
+            140.84,
+            42.61
+          ],
+          [
+            140.8229205,
+            42.5665157
+          ],
+          [
+            140.86444,
+            42.5425
+          ],
+          [
+            140.7994096,
+            42.6261184
+          ],
+          [
+            140.95,
+            42.56
+          ],
+          [
+            141.05,
+            42.53
+          ],
+          [
+            141.12,
+            42.51
+          ],
+          [
+            141.146411,
+            42.497467
+          ],
+          [
+            141.1485,
+            42.4935
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "tour_id": "hokkaido-day3",
+        "kind": "stop",
+        "order": 1,
+        "name": "호텔 시카노유(鹿の湯)",
+        "detail": "定山渓 · 2일차 숙소에서 출발",
+        "color": "#ea580c",
+        "day_label": "3일",
+        "time": "출발",
+        "note": "호텔 조식(뷔페) 후 도야코(洞爺湖)로 이동(약 1시간)"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          141.162765,
+          42.965706
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "tour_id": "hokkaido-day3",
+        "kind": "stop",
+        "order": 2,
+        "name": "도야 호수 유람선 선착장(洞爺湖 駅前桟橋)",
+        "detail": "洞爺湖汽船 · 駅前桟橋(유람선 선착장) · 약 50분",
+        "color": "#ea580c",
+        "day_label": "3일",
+        "time": "관광",
+        "note": "호텔 그랜드 도야 뒤편 선착장에서 승선. 중섬(中島) 유람 약 50분. 우스산(有珠山) 배경"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          140.8229205,
+          42.5665157
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "tour_id": "hokkaido-day3",
+        "kind": "stop",
+        "order": 3,
+        "name": "쇼와신잔(昭和新山)",
+        "detail": "활화산 · 유황 분연",
+        "color": "#ea580c",
+        "day_label": "3일",
+        "time": "관광",
+        "note": "1943년 우스산 화산활동으로 생성. 미마스 마사오(三松正夫) 보존"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          140.86444,
+          42.5425
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "tour_id": "hokkaido-day3",
+        "kind": "stop",
+        "order": 4,
+        "name": "사이로 전망대(サイロ展望台)",
+        "detail": "도야 호수 파노라마",
+        "color": "#ea580c",
+        "day_label": "3일",
+        "time": "관광",
+        "note": "최고 포토스팟. BOCCA 마시는 요구르트 1인 1병 제공"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          140.7994096,
+          42.6261184
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "tour_id": "hokkaido-day3",
+        "kind": "stop",
+        "order": 5,
+        "name": "노보리베츠 지옥계곡(登別地獄谷)",
+        "detail": "산책 약 15분",
+        "color": "#ea580c",
+        "day_label": "3일",
+        "time": "관광",
+        "note": "카사야마산(笠山) 분화구. 백연·유황 냄새. 중식: 가리비 정식"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          141.146411,
+          42.497467
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "tour_id": "hokkaido-day3",
+        "kind": "stop",
+        "order": 6,
+        "name": "노보리베츠 세키스이테이(石水亭)",
+        "detail": "화양실 업그레이드",
+        "color": "#ea580c",
+        "day_label": "3일",
+        "time": "숙박",
+        "note": "화양실(畳+트윈), 실내·노천온천, 가족탕(유료)"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          141.1485,
+          42.4935
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "hokkaido-day4",
+        "kind": "route",
+        "name": "4일차 · 10/11(일) 노보리베츠→인천",
+        "day_label": "4일",
+        "date": "2026.10.11(일)",
+        "description": "노보리베츠 세키스이테이(石水亭) → 다테 지다이무라(伊達時代村) → 신치토세(新千歳) → 인천(仁川)",
+        "distance_km": 58.0,
+        "segments": 2,
+        "color": "#9333ea",
+        "meals": {
+          "breakfast": "호텔 뷔페",
+          "lunch": "도리무시 우동(鶏蒸しうどん)",
+          "dinner": "기내(유료)"
+        },
+        "hotel": "— (귀국일)",
+        "flight": "7C1504 CTS 16:00 → ICN 19:10",
+        "highlight": "에도시대 테마파크 · 하나투어 간식 쿠폰 · 도리무시 우동"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            141.1485,
+            42.4935
+          ],
+          [
+            141.16067,
+            42.46389
+          ],
+          [
+            141.22,
+            42.5
+          ],
+          [
+            141.3,
+            42.55
+          ],
+          [
+            141.4,
+            42.6
+          ],
+          [
+            141.5,
+            42.66
+          ],
+          [
+            141.58,
+            42.71
+          ],
+          [
+            141.65,
+            42.745
+          ],
+          [
+            141.6925,
+            42.77528
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "tour_id": "hokkaido-day4",
+        "kind": "stop",
+        "order": 1,
+        "name": "노보리베츠 세키스이테이(石水亭)",
+        "detail": "登別 石水亭 · 3일차 숙소에서 출발",
+        "color": "#9333ea",
+        "day_label": "4일",
+        "time": "출발",
+        "note": "호텔 조식(뷔페) 후 다테 지다이무라로 이동"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          141.1485,
+          42.4935
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "tour_id": "hokkaido-day4",
+        "kind": "stop",
+        "order": 2,
+        "name": "노보리베츠 다테 지다이무라(登別伊達時代村)",
+        "detail": "에도시대 테마파크",
+        "color": "#9333ea",
+        "day_label": "4일",
+        "time": "오전",
+        "note": "닌자쇼·오이란쇼. 특전 간식 쿠폰. 중식: 도리무시 우동"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          141.16067,
+          42.46389
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "tour_id": "hokkaido-day4",
+        "kind": "stop",
+        "order": 3,
+        "name": "신치토세공항(新千歳空港)",
+        "detail": "CTS · 16:00 출발 · 7C1504",
+        "color": "#9333ea",
+        "day_label": "4일",
+        "time": "16:00",
+        "note": "약 1시간 이동 후 출국. 인천 19:10 도착"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          141.6925,
+          42.77528
+        ]
+      }
+    }
+  ]
+}

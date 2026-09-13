@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>일본 홋카이도 여행</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"
+    />
+    <link rel="stylesheet" href="css/styles.css?v=20260313-popup-border" />
+  </head>
+  <body>
+    <div id="map"></div>
+
+    <header class="app-header">
+      <nav class="header-nav" aria-label="주요 메뉴">
+        <button
+          type="button"
+          id="tour-toggle"
+          class="pill menu-btn"
+          aria-expanded="false"
+          aria-controls="tour-panel"
+        >
+          <svg class="icon-travel" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M17 6V4a2 2 0 0 0-2-2h-6a2 2 0 0 0-2 2v2H4a1 1 0 0 0-1 1v11a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3V7a1 1 0 0 0-1-1h-3zm-8-2h6v2H9V4zm10 14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8h14v10zM8 11h3v2H8v-2zm5 0h3v2h-3v-2z"
+            />
+          </svg>
+          투어
+        </button>
+
+        <button
+          type="button"
+          id="itinerary-toggle"
+          class="pill menu-btn"
+          aria-expanded="false"
+          aria-controls="itinerary-panel"
+        >
+          <svg class="icon-travel" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M7 3h10a2 2 0 0 1 2 2v16l-7-3-7 3V5a2 2 0 0 1 2-2zm2 4v2h6V7H9zm0 4v2h6v-2H9zm0 4v2h4v-2H9z"
+            />
+          </svg>
+          일정표
+        </button>
+
+        <button
+          type="button"
+          id="clothing-toggle"
+          class="pill menu-btn"
+          aria-expanded="false"
+          aria-controls="clothing-panel"
+        >
+          <svg class="icon-travel" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M16 4l-1.4-1.4c-.4-.4-.9-.6-1.4-.6h-2.4c-.5 0-1 .2-1.4.6L8 4H3v2h2l2.5 12.2c.2.9 1 1.8 2 1.8h5c1 0 1.8-.9 2-1.8L19 6h2V4h-5zm-4 14H9.5L7.2 6h9.6L14.5 18H12z"
+            />
+          </svg>
+          복장가이드
+        </button>
+
+        <button
+          type="button"
+          id="search-toggle"
+          class="pill menu-btn"
+          aria-expanded="false"
+          aria-controls="search-panel"
+        >
+          <svg class="icon-travel" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z"
+            />
+          </svg>
+          위치 검색
+        </button>
+
+        <button
+          type="button"
+          id="settings-toggle"
+          class="pill menu-btn"
+          aria-expanded="false"
+          aria-controls="settings-panel"
+        >
+          <svg class="icon-travel" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.03 7.03 0 0 0-1.63-.94l-.36-2.54A.5.5 0 0 0 13.9 2h-3.8a.5.5 0 0 0-.49.42l-.36 2.54c-.59.24-1.13.55-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.83 14.56a.5.5 0 0 0-.12.64l1.92 3.32c.14.24.43.34.68.24l2.39-.96c.5.39 1.04.7 1.63.94l.36 2.54c.05.24.26.42.49.42h3.8c.24 0 .44-.18.49-.42l.36-2.54c.59-.24 1.13-.55 1.63-.94l2.39.96c.25.1.54 0 .68-.24l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z"
+            />
+          </svg>
+          지도 설정
+        </button>
+        <span class="pill muted">Real Terrain · Satellite</span>
+      </nav>
+    </header>
+
+    <aside id="search-panel" class="side-panel panel panel-search" hidden>
+      <div class="panel-search-head">
+        <h2>위치 검색</h2>
+        <button type="button" id="search-close" class="link-btn">닫기</button>
+      </div>
+      <form id="search-form" class="stack">
+        <label>
+          장소명
+          <input
+            id="place-query"
+            type="search"
+            placeholder="예: Hallasan, Tokyo Station"
+            autocomplete="off"
+          />
+        </label>
+        <button type="submit" class="btn primary">검색</button>
+      </form>
+
+      <div class="divider"></div>
+
+      <form id="coords-form" class="stack">
+        <label>
+          위도
+          <input id="lat-input" type="number" step="any" value="42.77528" />
+        </label>
+        <label>
+          경도
+          <input id="lng-input" type="number" step="any" value="141.6925" />
+        </label>
+        <button type="submit" class="btn">좌표로 이동</button>
+      </form>
+
+      <p id="search-status" class="status" aria-live="polite"></p>
+      <ul id="search-results" class="results"></ul>
+
+      <div class="hint-card">
+        <strong>여행 시작 위치</strong>
+        <p>신치토세공항(新千歳空港)</p>
+        <span>42.77528, 141.6925</span>
+      </div>
+    </aside>
+
+    <aside id="itinerary-panel" class="side-panel panel panel-itinerary" hidden>
+      <div class="panel-search-head">
+        <h2>홋카이도 3박 4일 일정표</h2>
+        <button type="button" id="itinerary-close" class="link-btn">닫기</button>
+      </div>
+      <div id="itinerary-content" class="itinerary-content">
+        <p class="status">일정표를 불러오는 중…</p>
+      </div>
+    </aside>
+
+    <aside id="clothing-panel" class="side-panel panel panel-itinerary" hidden>
+      <div class="panel-search-head">
+        <h2>홋카이도 날씨 · 복장가이드</h2>
+        <button type="button" id="clothing-close" class="link-btn">닫기</button>
+      </div>
+      <div id="clothing-content" class="itinerary-content">
+        <p class="status">복장가이드를 불러오는 중…</p>
+      </div>
+    </aside>
+
+    <div id="tour-panel" class="side-panel tour-panel" hidden>
+      <div class="tour-bar">
+        <label class="tour-select">
+          <span class="tour-label">일정 선택</span>
+          <select id="tour-select">
+            <option value="hokkaido-all">일본 홋카이도 여행 (전체)</option>
+            <option value="hokkaido-day1">1일차 · 10/8(목) 인천→삿포로</option>
+            <option value="hokkaido-day2">2일차 · 10/9(금) 삿포로→오타루→죠잔케이</option>
+            <option value="hokkaido-day3">3일차 · 10/10(토) 죠잔케이→도야→노보리베츠</option>
+            <option value="hokkaido-day4">4일차 · 10/11(일) 노보리베츠→인천</option>
+          </select>
+        </label>
+        <button id="tour-start" class="btn primary">
+          <svg class="icon-travel" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"
+            />
+          </svg>
+          둘러보기 시작
+        </button>
+        <button id="tour-stop" class="btn" hidden>중지</button>
+      </div>
+
+      <aside class="panel panel-tour-info" id="tour-info" hidden>
+        <div class="tour-info-head">
+          <div>
+            <h2 id="tour-info-title">
+              <svg class="icon-travel title-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z"
+                />
+              </svg>
+              <span id="tour-info-title-text">일본 홋카이도 여행(1일)</span>
+            </h2>
+            <p id="tour-info-stats" class="tour-info-stats"></p>
+          </div>
+          <button type="button" id="tour-fit" class="link-btn">경로 전체 보기</button>
+        </div>
+        <p id="tour-info-desc" class="status"></p>
+        <div id="tour-meta" class="tour-meta" hidden></div>
+        <div id="tour-legend" class="tour-legend" hidden></div>
+        <ol id="tour-stops" class="tour-stops"></ol>
+      </aside>
+    </div>
+
+    <div class="nav-stack">
+      <button id="btn-reset-north" class="icon-btn" title="북쪽 정렬">N</button>
+      <button id="btn-zoom-in" class="icon-btn" title="확대">+</button>
+      <button id="btn-zoom-out" class="icon-btn" title="축소">−</button>
+      <button id="btn-toggle-3d" class="icon-btn active" title="2D/3D 전환">
+        3D
+      </button>
+    </div>
+
+    <button type="button" id="tour-stop-float" class="tour-stop-float" hidden>
+      투어 중지
+    </button>
+
+    <aside id="place-photo-card" class="side-panel panel panel-place-photo" hidden>
+      <div class="panel-search-head">
+        <h2 id="place-photo-heading">장소 사진</h2>
+        <button type="button" id="place-photo-close" class="link-btn">닫기</button>
+      </div>
+      <p id="place-photo-detail" class="place-photo-detail"></p>
+      <div class="place-photo-stage">
+        <button type="button" id="place-photo-prev" class="place-photo-nav" aria-label="이전 사진">‹</button>
+        <img id="place-photo-img" alt="" />
+        <button type="button" id="place-photo-next" class="place-photo-nav" aria-label="다음 사진">›</button>
+      </div>
+      <div id="place-photo-dots" class="place-photo-dots" aria-hidden="true"></div>
+      <div class="place-photo-meta">
+        <strong id="place-photo-title"></strong>
+        <span id="place-photo-credit"></span>
+      </div>
+    </aside>
+
+    <aside id="settings-panel" class="side-panel panel panel-settings" hidden>
+      <div class="panel-search-head">
+        <h2>지도 설정</h2>
+        <button type="button" id="settings-close" class="link-btn">닫기</button>
+      </div>
+      <div class="segmented" role="group" aria-label="베이스맵">
+        <button type="button" class="seg active" data-basemap="satellite">
+          위성 영상
+        </button>
+        <button type="button" class="seg" data-basemap="topo">지형 지도</button>
+      </div>
+
+      <label class="slider-label">
+        고도 배율
+        <span id="exaggeration-value">1.5×</span>
+      </label>
+      <input
+        id="exaggeration"
+        type="range"
+        min="0"
+        max="3"
+        step="0.1"
+        value="1.5"
+      />
+
+      <div class="divider"></div>
+
+      <h2>거리 측정</h2>
+      <div class="row">
+        <button id="measure-toggle" class="btn">측정 시작</button>
+        <button id="measure-clear" class="btn ghost">초기화</button>
+      </div>
+      <p id="measure-result" class="status">지도를 클릭해 지점을 추가하세요.</p>
+    </aside>
+
+  <script src="js/config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script type="module" src="js/app.js?v=20260313-popup-border"></script>
+  </body>
+</html>
