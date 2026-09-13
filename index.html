@@ -4,11 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>일본 홋카이도 여행</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="favicon.svg" />
     <link
       rel="stylesheet"
       href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"
     />
-    <link rel="stylesheet" href="css/styles.css?v=20260313-basemap-btn" />
+    <link rel="stylesheet" href="css/styles.css?v=20260313-nav-compact" />
   </head>
   <body>
     <div id="map"></div>
@@ -44,7 +46,7 @@
               d="M7 3h10a2 2 0 0 1 2 2v16l-7-3-7 3V5a2 2 0 0 1 2-2zm2 4v2h6V7H9zm0 4v2h6v-2H9zm0 4v2h4v-2H9z"
             />
           </svg>
-          일정표
+          일정
         </button>
 
         <button
@@ -185,20 +187,25 @@
       </div>
 
       <aside class="panel panel-tour-info" id="tour-info" hidden>
-        <div class="tour-info-head">
-          <div>
-            <h2 id="tour-info-title">
-              <svg class="icon-travel title-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  fill="currentColor"
-                  d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z"
-                />
-              </svg>
-              <span id="tour-info-title-text">일본 홋카이도 여행(1일)</span>
-            </h2>
-            <p id="tour-info-stats" class="tour-info-stats"></p>
+        <div class="tour-info-sticky">
+          <div class="tour-info-head">
+            <div class="tour-info-titles">
+              <h2 id="tour-info-title">
+                <svg class="icon-travel title-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z"
+                  />
+                </svg>
+                <span id="tour-info-title-text">일본 홋카이도 여행(1일)</span>
+              </h2>
+              <p id="tour-info-stats" class="tour-info-stats"></p>
+            </div>
+            <button type="button" id="tour-close" class="link-btn">닫기</button>
           </div>
-          <button type="button" id="tour-fit" class="link-btn">경로 전체 보기</button>
+          <div class="tour-info-toolbar">
+            <button type="button" id="tour-fit" class="btn tour-fit-btn">경로 전체 보기</button>
+          </div>
         </div>
         <p id="tour-info-desc" class="status"></p>
         <div id="tour-meta" class="tour-meta" hidden></div>
@@ -292,6 +299,6 @@
   <script src="js/config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-  <script type="module" src="js/app.js?v=20260313-current-loc"></script>
+  <script type="module" src="js/app.js?v=20260313-tour-fit"></script>
   </body>
 </html>

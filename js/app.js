@@ -38,6 +38,7 @@ const tourStart = document.getElementById('tour-start');
 const tourStop = document.getElementById('tour-stop');
 const tourStopFloat = document.getElementById('tour-stop-float');
 const placePhotoCard = document.getElementById('place-photo-card');
+const placePhotoStage = document.querySelector('.place-photo-stage');
 const placePhotoImg = document.getElementById('place-photo-img');
 const placePhotoHeading = document.getElementById('place-photo-heading');
 const placePhotoTitle = document.getElementById('place-photo-title');
@@ -53,6 +54,7 @@ const tourInfoStats = document.getElementById('tour-info-stats');
 const tourInfoDesc = document.getElementById('tour-info-desc');
 const tourStops = document.getElementById('tour-stops');
 const tourFit = document.getElementById('tour-fit');
+const tourClose = document.getElementById('tour-close');
 const tourToggle = document.getElementById('tour-toggle');
 const tourPanel = document.getElementById('tour-panel');
 const searchToggle = document.getElementById('search-toggle');
@@ -203,6 +205,48 @@ const markdownLoaded = {
   clothing: false,
 };
 
+/** GitHub Flavored Markdown heading id (github-slugger style). */
+function githubHeadingSlug(text) {
+  return String(text)
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s-]/gu, '')
+    .replace(/\s/g, '-');
+}
+
+function enhanceMarkdownAnchors(contentEl) {
+  if (!contentEl) return;
+  const used = new Map();
+  contentEl.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach((heading) => {
+    const base = githubHeadingSlug(heading.textContent || '') || 'section';
+    const count = used.get(base) || 0;
+    used.set(base, count + 1);
+    const id = count === 0 ? base : `${base}-${count}`;
+    heading.id = id;
+  });
+
+  if (contentEl.dataset.tocBound === '1') return;
+  contentEl.dataset.tocBound = '1';
+  contentEl.addEventListener('click', (e) => {
+    const link = e.target.closest('a[href^="#"]');
+    if (!link || !contentEl.contains(link)) return;
+    const raw = link.getAttribute('href') || '';
+    if (raw === '#' || raw.length < 2) return;
+    e.preventDefault();
+    let id = raw.slice(1);
+    try {
+      id = decodeURIComponent(id);
+    } catch {
+      /* keep raw */
+    }
+    const target =
+      contentEl.querySelector(`#${CSS.escape(id)}`) ||
+      document.getElementById(id);
+    if (!target || !contentEl.contains(target)) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+
 async function loadMarkdownDoc({
   loadedKey,
   url,
@@ -221,6 +265,7 @@ async function loadMarkdownDoc({
     } else {
       marked.setOptions({ breaks: true, gfm: true });
       contentEl.innerHTML = marked.parse(markdown);
+      enhanceMarkdownAnchors(contentEl);
     }
     markdownLoaded[loadedKey] = true;
   } catch (err) {
@@ -284,8 +329,16 @@ placePhotoNext?.addEventListener('click', (e) => {
   stepPlacePhoto(1);
 });
 
+/** Suppress image click after a swipe so it doesn't advance twice. */
+let placePhotoSwipeConsumed = false;
+const PLACE_PHOTO_SWIPE_THRESHOLD_PX = 40;
+
 placePhotoImg?.addEventListener('click', (e) => {
   e.stopPropagation();
+  if (placePhotoSwipeConsumed) {
+    placePhotoSwipeConsumed = false;
+    return;
+  }
   if (!activePhotoEntry?.images || activePhotoEntry.images.length < 2) return;
   stepPlacePhoto(1);
 });
@@ -296,6 +349,57 @@ placePhotoDots?.addEventListener('click', (e) => {
   activePhotoIndex = Number(btn.dataset.photoIndex) || 0;
   renderPlacePhotoPanel();
 });
+
+(function bindPlacePhotoSwipe() {
+  if (!placePhotoStage) return;
+
+  let pointerId = null;
+  let startX = 0;
+  let startY = 0;
+  let tracking = false;
+
+  const canSwipe = () =>
+    Boolean(activePhotoEntry?.images && activePhotoEntry.images.length > 1);
+
+  placePhotoStage.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (e.target.closest('.place-photo-nav')) return;
+    if (!canSwipe()) return;
+    tracking = true;
+    pointerId = e.pointerId;
+    startX = e.clientX;
+    startY = e.clientY;
+    placePhotoSwipeConsumed = false;
+    try {
+      placePhotoStage.setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+  });
+
+  placePhotoStage.addEventListener('pointerup', (e) => {
+    if (!tracking || e.pointerId !== pointerId) return;
+    tracking = false;
+    pointerId = null;
+    if (!canSwipe()) return;
+
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+    if (absX < PLACE_PHOTO_SWIPE_THRESHOLD_PX || absX <= absY * 1.15) return;
+
+    // 왼쪽으로 스와이프 → 다음, 오른쪽 → 이전
+    placePhotoSwipeConsumed = true;
+    stepPlacePhoto(dx < 0 ? 1 : -1);
+  });
+
+  placePhotoStage.addEventListener('pointercancel', (e) => {
+    if (e.pointerId !== pointerId) return;
+    tracking = false;
+    pointerId = null;
+  });
+})();
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowLeft' && activePhotoEntry && !placePhotoCard?.hidden) {
@@ -978,17 +1082,36 @@ function fitTourBounds(routesOrRoute, stops) {
     ? routesOrRoute
     : [routesOrRoute];
   const bounds = new maplibregl.LngLatBounds();
-  routes.forEach((route) => {
-    route?.geometry?.coordinates?.forEach((c) => bounds.extend(c));
-  });
-  stops.forEach((s) => bounds.extend(s.geometry.coordinates));
-  if (bounds.isEmpty()) return;
+
+  const extendCoords = (coords, depth = 0) => {
+    if (!Array.isArray(coords) || depth > 3) return;
+    if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+      bounds.extend(coords);
+      return;
+    }
+    coords.forEach((c) => extendCoords(c, depth + 1));
+  };
+
+  routes.forEach((route) => extendCoords(route?.geometry?.coordinates));
+  stops.forEach((s) => extendCoords(s?.geometry?.coordinates));
+  if (bounds.isEmpty()) {
+    console.warn('[tour] fitTourBounds: empty bounds', {
+      tourId: tourSelect?.value,
+      routeCount: routes.length,
+      stopCount: stops?.length ?? 0,
+    });
+    return;
+  }
+
+  const narrow = window.matchMedia('(max-width: 900px)').matches;
   map.fitBounds(bounds, {
-    padding: { top: 120, bottom: 80, left: 420, right: 80 },
+    padding: narrow
+      ? { top: 200, bottom: 40, left: 24, right: 24 }
+      : { top: 120, bottom: 80, left: 420, right: 80 },
     pitch: is3d ? 55 : 0,
     bearing: -18,
     duration: 1600,
-    maxZoom: routeSelect.value === 'hokkaido-all' ? 9.5 : 12.5,
+    maxZoom: tourSelect.value === 'hokkaido-all' ? 9.5 : 12.5,
   });
 }
 
@@ -1113,6 +1236,10 @@ tourFit.addEventListener('click', () => {
   const routes = getChildRoutes(route);
   const stops = getStopFeatures(tourSelect.value);
   if (routes.length) fitTourBounds(routes, stops);
+});
+
+tourClose?.addEventListener('click', () => {
+  setTourMenuOpen(false);
 });
 
 tourStart.addEventListener('click', () => {
