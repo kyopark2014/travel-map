@@ -144,7 +144,25 @@ travel-map/
 - Esri / AWS 공개 타일은 데모·개인 실험용으로 적합합니다. 상용·대량 트래픽에는 ToS 확인 또는 자체 타일/프록시를 검토하세요.
 - 투어 경로 좌표는 시연용 근사치이며 실제 도로/철도 노선과 다를 수 있습니다.
 
-## 실행 결과
 
-전체 여행 정보는 아래와 같이 투어에서 확인할 수 있습니다.
+### 실행 결과 
 
+투어 선택시 아래와 같이 전체 여행 경로를 확인할 수 있습니다.
+
+<img width="398" height="546" alt="image" src="https://github.com/user-attachments/assets/d819b025-358c-4ded-a607-bf3e32b1641c" />
+
+여행지를 선택하면 아래와 같이 위치에 말풍선을 보여줍니다.
+
+<img width="272" height="228" alt="image" src="https://github.com/user-attachments/assets/283c32de-4b5b-4e21-a076-fe408da459e9" />
+
+말풍선을 선택하면 해당 여행지에 대한 상세정보를 확인할 수 있습니다.
+
+<img width="409" height="454" alt="image" src="https://github.com/user-attachments/assets/3ecce74f-b918-4412-8d71-8c61b66fe040" />
+
+일정표를 누르면 전체 여행 일정표를 확인할 수 있습니다.
+
+<img width="406" height="644" alt="image" src="https://github.com/user-attachments/assets/bd55c378-edd0-453d-ba33-5ff8d6295f59" />
+
+복장을 선택하면 여행기간에 주의할 복장과 날씨에 대한 정보를 확인할 수 있습니다.
+
+<img width="413" height="658" alt="image" src="https://github.com/user-attachments/assets/d1ba37ec-9af6-4a88-ab26-a73fc13a96b7" />
