@@ -1,6 +1,6 @@
 # Travel Map
 
-MapLibre GL JS + WebGL로 위성·지형을 브라우저에서 직접 렌더링하는 정적 웹 앱입니다. 한일 또는 일한 번역도 함께 제공합니다.
+MapLibre GL JS + WebGL로 위성·지형을 브라우저에서 직접 렌더링하는 정적 웹 앱입니다. 일한·한일·중한 통역도 함께 제공합니다.
 
 
 ## 시스템 구성
@@ -25,12 +25,13 @@ MapLibre GL JS + WebGL로 위성·지형을 브라우저에서 직접 렌더링�
 - **거리 측정**: 지도 클릭으로 경로 거리 계산
 - **투어 경로 표시**: 드롭다운에서 선택 시 경로·경유지 표시 후 카메라 둘러보기
 - **일본 홋카이도 여행 (전체)** — 2026.10.08~10.11 3박 4일, 날짜별 색 표시
-- **1일차 10/8** — 신치토세 → 스스키노 → ibis Styles 삿포로
-- **2일차 10/9** — 이비스 스타일스 삿포로 출발 → 오도리·시계탑·도청사 → 시로이 코이비토 → 다나카 주조 → 오타루 → 시카노유
-- **3일차 10/10** — 호텔 시카노유 출발 → 도야 유람선 · 쇼와신잔 · 사이로 · 지옥계곡 · 세키스이테이
+- **1일차 10/8** — 신치토세 → 죠잔케이 하나모미지
+- **2일차 10/9** — 오타루 운하·과자거리·오르골당·기타이치 가라스·다나카 주조 → 오도리·시계탑·도청사·시로이 코이비토 → ibis Styles 삿포로
+- **3일차 10/10** — 이비스 출발 → 도야 호수·유람선 · 쇼와신잔 · 사이로 · 가리비 정식 → 다테 · 지옥계곡 → 세키스이테이
 - **4일차 10/11** — 노보리베츠 세키스이테이 출발 → 다테 지다이무라 → 신치토세 → 인천
 - **일한 통역** — 일본어 음성을 한국어로 실시간 번역 (Bedrock Voxtral)
 - **한일 통역** — 한국어 push-to-talk → 일본어·한글 발음 번역 + Polly 음성 재생
+- **중한 통역** — 중국어(만다린/광둥어) 음성을 한국어로 실시간 번역 (Bedrock Voxtral)
 
 ## 초기 위치
 
@@ -62,7 +63,7 @@ MapLibre GL JS + WebGL로 위성·지형을 브라우저에서 직접 렌더링�
 |-------------|-------------|----------------|
 | `GET /health` | `{ status, service, region, voxtralModelId, … }` JSON | 모니터링·헬스 확인 |
 | `GET /tours` | 패키징된 `tours.geojson` 전체를 JSON 응답 (CORS `*`) | 지도 투어 드롭다운·경로 레이어 |
-| `POST /transcribe` | WAV(base64) → Bedrock Voxtral (`direction`: `ja2ko` \| `ko2ja`) | 일한 / 한일 통역 패널 |
+| `POST /transcribe` | WAV(base64) → Bedrock Voxtral (`direction`: `ja2ko` \| `ko2ja` \| `zh2ko`) | 일한 / 한일 / 중한 통역 패널 |
 | `POST /speak` | 일본어 텍스트 → Amazon Polly MP3(base64) | 한일 결과 스피커 버튼 |
 | `OPTIONS` | CORS preflight | 브라우저 cross-origin `fetch` |
 
@@ -147,6 +148,44 @@ def _speech_to_korean(audio_bytes, audio_format):
     # Bedrock Converse: content에 audio + text
     korean = _converse_audio(audio_bytes, audio_format, prompt)
     return korean, VOXTRAL_MODEL_ID
+```
+
+### 중한번역
+
+메뉴 **중한** 패널입니다. 중국어를 말하면 한국어 번역만 쌓입니다. 일한과 같은 실시간(약 6초 세그먼트) 방식이며, **만다린(기본)** / **광둥어**를 선택할 수 있습니다.
+
+**STT / 음성 모델**
+
+| 항목 | 값 |
+|------|-----|
+| 제공 | Amazon Bedrock `Converse` (오디오 입력) |
+| 모델 ID | `mistral.voxtral-small-24b-2507` (Mistral **Voxtral Small 24B**) |
+| 역할 | 중국어(만다린 또는 광둥어) 음성을 듣고 **바로 한국어 번역문** 생성 |
+| 방언 | `chineseDialect`: `mandarin`(기본) \| `cantonese` |
+
+**흐름**
+
+1. 방언 선택(만다린/광둥어) 후 마이크 토글로 녹음 시작
+2. 브라우저에서 WAV로 변환 후 `POST /transcribe` (`direction: "zh2ko"`, `chineseDialect`)
+3. Lambda가 Bedrock **Voxtral**에 오디오+방언 힌트 프롬프트를 넘겨 **한국어만** 반환
+4. `js/translate-db.js`에 `direction=zh2ko`로 저장·표시
+
+**프론트 요청**
+
+```javascript
+// js/app.js — submitTranslateAudio (중한)
+await fetch(cfg.apiTranscribeUrl, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    audio: audioBase64,
+    format: 'wav',
+    direction: 'zh2ko',
+    language: 'zh',
+    chineseDialect: 'mandarin', // or 'cantonese'
+    targetLanguage: 'ko',
+  }),
+});
 ```
 
 ### 한일번역

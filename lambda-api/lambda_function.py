@@ -5,7 +5,7 @@ API for travel-map.
 Routes (API Gateway HTTP API → Lambda proxy):
   GET  /health      — health check
   GET  /tours       — Hokkaido tour GeoJSON
-  POST /transcribe  — speech translate (ja2ko | ko2ja)
+  POST /transcribe  — speech translate (ja2ko | ko2ja | zh2ko)
   POST /speak       — Amazon Polly TTS (Japanese)
 """
 
@@ -168,6 +168,52 @@ def _speech_to_korean(audio_bytes: bytes, audio_format: str) -> Tuple[str, str]:
     return korean, VOXTRAL_MODEL_ID
 
 
+def _normalize_chinese_dialect(value: Any) -> str:
+    """Return 'mandarin' (default) or 'cantonese'."""
+    raw = str(value or "").strip().lower()
+    if raw in (
+        "cantonese",
+        "yue",
+        "zh-yue",
+        "zh-hk",
+        "zh_hk",
+        "광둥어",
+        "광동어",
+        "粤语",
+        "粵語",
+    ):
+        return "cantonese"
+    return "mandarin"
+
+
+def _speech_zh_to_korean(
+    audio_bytes: bytes, audio_format: str, dialect: str = "mandarin"
+) -> Tuple[str, str, str]:
+    """중한: Chinese speech → Korean only (1 step)."""
+    dialect = _normalize_chinese_dialect(dialect)
+    if dialect == "cantonese":
+        lang_hint = (
+            "This audio is Cantonese (广东话 / 粵語). "
+            "Understand the spoken Cantonese and translate it into natural Korean."
+        )
+        zh_label = "cantonese"
+    else:
+        lang_hint = (
+            "This audio is Mandarin Chinese (普通话 / 國語). "
+            "Understand the spoken Mandarin and translate it into natural Korean."
+        )
+        zh_label = "mandarin"
+    prompt = (
+        f"{lang_hint}"
+        "출력은 한국어(한글) 번역문만."
+        "중국어 원문·병음·앞말·설명·따옴표·라벨은 넣지 마세요."
+        "한국어 번역 문장만 출력하세요."
+    )
+    korean = _converse_audio(audio_bytes, audio_format, prompt)
+    logger.info("zh2ko dialect=%s ko=%s", zh_label, korean[:200])
+    return korean, VOXTRAL_MODEL_ID, zh_label
+
+
 def _parse_ja_and_pronunciation(text: str) -> Tuple[str, str]:
     """Parse 'JA:' / '발음:' labeled output; fallback to whole text as Japanese."""
     japanese = ""
@@ -285,8 +331,12 @@ def _handle_transcribe(event: Dict[str, Any]) -> Dict[str, Any]:
         return _response(400, {"error": "Invalid JSON body"})
 
     direction = str(payload.get("direction") or "ja2ko").strip().lower()
-    if direction not in ("ja2ko", "ko2ja"):
-        return _response(400, {"error": "direction must be ja2ko or ko2ja"})
+    if direction not in ("ja2ko", "ko2ja", "zh2ko"):
+        return _response(400, {"error": "direction must be ja2ko, ko2ja, or zh2ko"})
+
+    chinese_dialect = _normalize_chinese_dialect(
+        payload.get("chineseDialect") or payload.get("dialect") or "mandarin"
+    )
 
     # 한일 키보드 입력: audio 없이 한국어 텍스트만 번역
     text_input = _clean_model_text(
@@ -368,6 +418,26 @@ def _handle_transcribe(event: Dict[str, Any]) -> Dict[str, Any]:
                     "bytes": len(audio_bytes),
                     "inputMode": "mic",
                     "steps": ["stt_ko", "translate_ja_pron"],
+                },
+            )
+
+        if direction == "zh2ko":
+            korean, model_id, dialect = _speech_zh_to_korean(
+                audio_bytes, str(audio_format), chinese_dialect
+            )
+            return _response(
+                200,
+                {
+                    "direction": "zh2ko",
+                    "text": korean,
+                    "korean": korean,
+                    "language": "ko",
+                    "sourceLanguage": "zh",
+                    "chineseDialect": dialect,
+                    "targetLanguage": "ko",
+                    "modelId": model_id,
+                    "bytes": len(audio_bytes),
+                    "steps": ["speech_to_ko"],
                 },
             )
 

@@ -389,15 +389,17 @@ body {
   height: 26px;
 }
 
-/* 일한/한일: 누르기 쉽게 마이크 1.5배 */
+/* 일한/한일/중한: 누르기 쉽게 마이크 1.5배 */
 #translate-record.mic-btn,
-#translate-koja-record.mic-btn {
+#translate-koja-record.mic-btn,
+#translate-zhko-record.mic-btn {
   width: 84px;
   height: 84px;
 }
 
 #translate-record.mic-btn .mic-icon,
-#translate-koja-record.mic-btn .mic-icon {
+#translate-koja-record.mic-btn .mic-icon,
+#translate-zhko-record.mic-btn .mic-icon {
   width: 39px;
   height: 39px;
 }
@@ -1314,13 +1316,15 @@ input[type="range"] {
   }
 
   #translate-record.mic-btn,
-  #translate-koja-record.mic-btn {
+  #translate-koja-record.mic-btn,
+  #translate-zhko-record.mic-btn {
     width: 72px;
     height: 72px;
   }
 
   #translate-record.mic-btn .mic-icon,
-  #translate-koja-record.mic-btn .mic-icon {
+  #translate-koja-record.mic-btn .mic-icon,
+  #translate-zhko-record.mic-btn .mic-icon {
     width: 33px;
     height: 33px;
   }

@@ -1,5 +1,5 @@
 /**
- * Client-side SQLite (sql.js) for 일한/한일 translation history.
+ * Client-side SQLite (sql.js) for 일한/한일/중한 translation history.
  * Persisted via IndexedDB.
  */
 
@@ -8,8 +8,15 @@ const IDB_STORE = 'sqlite';
 const IDB_KEY = 'translations-v2';
 const SQL_CDN = 'https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/';
 
+const VALID_DIRECTIONS = new Set(['ja2ko', 'ko2ja', 'zh2ko']);
+
 let sqlReady = null;
 let db = null;
+
+function normalizeDirection(direction) {
+  const dir = String(direction || 'ja2ko').trim().toLowerCase();
+  return VALID_DIRECTIONS.has(dir) ? dir : 'ja2ko';
+}
 
 function openIdb() {
   return new Promise((resolve, reject) => {
@@ -132,11 +139,11 @@ export async function insertTranslation({
   pronunciation = '',
   modelId = '',
 }) {
-  const dir = direction === 'ko2ja' ? 'ko2ja' : 'ja2ko';
+  const dir = normalizeDirection(direction);
   const ko = String(korean || '').trim();
   const ja = String(japanese || '').trim();
   const pron = String(pronunciation || '').trim();
-  if (dir === 'ja2ko' && !ko) return null;
+  if ((dir === 'ja2ko' || dir === 'zh2ko') && !ko) return null;
   if (dir === 'ko2ja' && !ko && !ja) return null;
 
   const database = await initTranslateDb();
@@ -162,7 +169,7 @@ export async function insertTranslation({
 }
 
 export async function listTranslations({ direction = 'ja2ko', limit = 500 } = {}) {
-  const dir = direction === 'ko2ja' ? 'ko2ja' : 'ja2ko';
+  const dir = normalizeDirection(direction);
   const database = await initTranslateDb();
   const stmt = database.prepare(
     `SELECT id, direction, korean, japanese, pronunciation, model_id, created_at

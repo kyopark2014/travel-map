@@ -97,6 +97,19 @@ const translateKojaMicWrap = document.getElementById('translate-koja-mic-wrap');
 const translateKojaKeyboard = document.getElementById('translate-koja-keyboard');
 const translateKojaInput = document.getElementById('translate-koja-input');
 const translateKojaSubmit = document.getElementById('translate-koja-submit');
+const translateZhkoToggle = document.getElementById('translate-zhko-toggle');
+const translateZhkoPanel = document.getElementById('translate-zhko-panel');
+const translateZhkoClose = document.getElementById('translate-zhko-close');
+const translateZhkoRecord = document.getElementById('translate-zhko-record');
+const translateZhkoStatus = document.getElementById('translate-zhko-status');
+const translateZhkoLog = document.getElementById('translate-zhko-log');
+const translateZhkoHint = document.getElementById('translate-zhko-hint');
+const translateZhkoDialectMandarin = document.getElementById(
+  'translate-zhko-dialect-mandarin',
+);
+const translateZhkoDialectCantonese = document.getElementById(
+  'translate-zhko-dialect-cantonese',
+);
 const btnResetNorth = document.getElementById('btn-reset-north');
 const btnZoomIn = document.getElementById('btn-zoom-in');
 const btnZoomOut = document.getElementById('btn-zoom-out');
@@ -114,7 +127,7 @@ let currentBasemap = 'satellite';
 let tourData = null;
 let activeTourId = null;
 let exaggeration = 1.5;
-/** @type {null | 'tour' | 'itinerary' | 'clothing' | 'search' | 'settings' | 'place' | 'translate' | 'translate-koja'} */
+/** @type {null | 'tour' | 'itinerary' | 'clothing' | 'search' | 'settings' | 'place' | 'translate' | 'translate-koja' | 'translate-zhko'} */
 let activeSidePanel = null;
 /** @type {null | { places: Record<string, any>, attribution?: string }} */
 let photoManifest = null;
@@ -152,6 +165,10 @@ function syncMenuButtons() {
     'aria-expanded',
     activeSidePanel === 'translate-koja' ? 'true' : 'false',
   );
+  translateZhkoToggle?.setAttribute(
+    'aria-expanded',
+    activeSidePanel === 'translate-zhko' ? 'true' : 'false',
+  );
 }
 
 function setSidePanel(panel) {
@@ -166,16 +183,19 @@ function setSidePanel(panel) {
   if (settingsPanel) settingsPanel.hidden = next !== 'settings';
   if (translatePanel) translatePanel.hidden = next !== 'translate';
   if (translateKojaPanel) translateKojaPanel.hidden = next !== 'translate-koja';
+  if (translateZhkoPanel) translateZhkoPanel.hidden = next !== 'translate-zhko';
   if (placePhotoCard) placePhotoCard.hidden = next !== 'place';
   syncMenuButtons();
 
+  const translatePanels = new Set([
+    'translate',
+    'translate-koja',
+    'translate-zhko',
+  ]);
   const leavingTranslate =
-    (prev === 'translate' || prev === 'translate-koja') &&
-    next !== 'translate' &&
-    next !== 'translate-koja';
+    translatePanels.has(prev) && !translatePanels.has(next);
   const switchingTranslate =
-    (prev === 'translate' && next === 'translate-koja') ||
-    (prev === 'translate-koja' && next === 'translate');
+    translatePanels.has(prev) && translatePanels.has(next) && prev !== next;
   if (leavingTranslate || switchingTranslate) {
     kojaHoldActive = false;
     kojaPointerId = null;
@@ -215,6 +235,11 @@ function setSidePanel(panel) {
     activeTranslateDirection = 'ko2ja';
     setKojaInputMode(kojaInputMode);
     loadTranslateHistory('ko2ja').catch((err) => console.error(err));
+  }
+  if (next === 'translate-zhko') {
+    activeTranslateDirection = 'zh2ko';
+    setZhkoDialect(zhkoDialect);
+    loadTranslateHistory('zh2ko').catch((err) => console.error(err));
   }
   if (next === 'place') {
     renderPlacePhotoPanel();
@@ -268,6 +293,11 @@ function setTranslateOpen(open) {
 function setTranslateKojaOpen(open) {
   if (open) setSidePanel('translate-koja');
   else if (activeSidePanel === 'translate-koja') setSidePanel(null);
+}
+
+function setTranslateZhkoOpen(open) {
+  if (open) setSidePanel('translate-zhko');
+  else if (activeSidePanel === 'translate-zhko') setSidePanel(null);
 }
 
 const markdownLoaded = {
@@ -379,6 +409,11 @@ translateKojaToggle?.addEventListener('click', (e) => {
   setSidePanel('translate-koja');
 });
 
+translateZhkoToggle?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  setSidePanel('translate-zhko');
+});
+
 searchClose.addEventListener('click', () => {
   setSearchPanelOpen(false);
 });
@@ -403,12 +438,18 @@ translateKojaClose?.addEventListener('click', () => {
   setTranslateKojaOpen(false);
 });
 
-/* ---------- Speech translate: 일한 (ja2ko) / 한일 (ko2ja + Polly) ---------- */
+translateZhkoClose?.addEventListener('click', () => {
+  setTranslateZhkoOpen(false);
+});
+
+/* ---------- Speech translate: 일한 (ja2ko) / 한일 (ko2ja + Polly) / 중한 (zh2ko) ---------- */
 const TRANSLATE_SEGMENT_MS = 6000;
-/** @type {'ja2ko' | 'ko2ja'} */
+/** @type {'ja2ko' | 'ko2ja' | 'zh2ko'} */
 let activeTranslateDirection = 'ja2ko';
 /** @type {'mic' | 'keyboard'} */
 let kojaInputMode = 'mic';
+/** @type {'mandarin' | 'cantonese'} */
+let zhkoDialect = 'mandarin';
 let translateMediaStream = null;
 let translateRecorder = null;
 let translateChunks = [];
@@ -426,6 +467,14 @@ function translateUi(direction = activeTranslateDirection) {
       record: translateKojaRecord,
       status: translateKojaStatus,
       log: translateKojaLog,
+    };
+  }
+  if (direction === 'zh2ko') {
+    return {
+      direction: 'zh2ko',
+      record: translateZhkoRecord,
+      status: translateZhkoStatus,
+      log: translateZhkoLog,
     };
   }
   return {
@@ -469,6 +518,33 @@ function renderTranslateEmpty(direction = activeTranslateDirection) {
       ? '마이크를 누른 채 말하면, 손을 뗀 뒤 일본어·발음이 여기에 쌓입니다. 마이크 버튼으로 들을 수 있습니다.'
       : '통역 결과가 여기에 쌓입니다. 스크롤로 이전 내용을 볼 수 있습니다.';
   ui.log.innerHTML = `<p class="translate-empty">${hint}</p>`;
+}
+
+function setZhkoDialect(dialect) {
+  zhkoDialect = dialect === 'cantonese' ? 'cantonese' : 'mandarin';
+  const isMandarin = zhkoDialect === 'mandarin';
+  translateZhkoDialectMandarin?.classList.toggle('active', isMandarin);
+  translateZhkoDialectCantonese?.classList.toggle('active', !isMandarin);
+  translateZhkoDialectMandarin?.setAttribute(
+    'aria-pressed',
+    isMandarin ? 'true' : 'false',
+  );
+  translateZhkoDialectCantonese?.setAttribute(
+    'aria-pressed',
+    isMandarin ? 'false' : 'true',
+  );
+  const label = isMandarin ? '만다린' : '광둥어';
+  if (translateZhkoHint) {
+    translateZhkoHint.textContent =
+      `마이크를 눌러 중국어(${label})를 말하면 한국어로 번역됩니다. ` +
+      '이전 결과는 아래로 스크롤해 확인할 수 있습니다.';
+  }
+  if (activeSidePanel === 'translate-zhko' && !translateListening) {
+    setTranslateStatus(
+      `중국어(${label}) → 한국어. 마이크(초록)를 눌러 통역을 시작하세요.`,
+      'zh2ko',
+    );
+  }
 }
 
 function clearKojaSelection(except = null) {
@@ -656,7 +732,7 @@ async function saveAndShowTranslation({
     ja = normalized.japanese;
     pron = normalized.pronunciation;
   }
-  if (direction === 'ja2ko' && !ko) return null;
+  if ((direction === 'ja2ko' || direction === 'zh2ko') && !ko) return null;
   if (direction === 'ko2ja' && !ko && !ja) return null;
   try {
     await insertTranslation({
@@ -960,7 +1036,7 @@ function scheduleNextTranslateSegment() {
 }
 
 async function startTranslateListening(direction) {
-  if (direction === 'ja2ko' || direction === 'ko2ja') {
+  if (direction === 'ja2ko' || direction === 'ko2ja' || direction === 'zh2ko') {
     activeTranslateDirection = direction;
   }
   if (direction === 'ko2ja') {
@@ -1128,16 +1204,22 @@ async function submitTranslateAudio(blob, { continueListening = false } = {}) {
     }
 
     const audioBase64 = await blobToBase64(wavBlob);
+    const sourceLanguage =
+      direction === 'ko2ja' ? 'ko' : direction === 'zh2ko' ? 'zh' : 'ja';
+    const body = {
+      audio: audioBase64,
+      format: 'wav',
+      direction,
+      language: sourceLanguage,
+      targetLanguage: direction === 'ko2ja' ? 'ja' : 'ko',
+    };
+    if (direction === 'zh2ko') {
+      body.chineseDialect = zhkoDialect;
+    }
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        audio: audioBase64,
-        format: 'wav',
-        direction,
-        language: direction === 'ko2ja' ? 'ko' : 'ja',
-        targetLanguage: direction === 'ko2ja' ? 'ja' : 'ko',
-      }),
+      body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -1175,7 +1257,7 @@ async function submitTranslateAudio(blob, { continueListening = false } = {}) {
     const korean = (data.korean || data.text || '').trim();
     if (korean) {
       await saveAndShowTranslation({
-        direction: 'ja2ko',
+        direction: direction === 'zh2ko' ? 'zh2ko' : 'ja2ko',
         korean,
         modelId: data.modelId,
       });
@@ -1205,6 +1287,20 @@ translateRecord?.addEventListener('click', () => {
     console.error(err);
     setTranslateStatus('통역 중 오류가 발생했습니다.', 'ja2ko');
   });
+});
+
+translateZhkoRecord?.addEventListener('click', () => {
+  startTranslateListening('zh2ko').catch((err) => {
+    console.error(err);
+    setTranslateStatus('통역 중 오류가 발생했습니다.', 'zh2ko');
+  });
+});
+
+translateZhkoDialectMandarin?.addEventListener('click', () => {
+  setZhkoDialect('mandarin');
+});
+translateZhkoDialectCantonese?.addEventListener('click', () => {
+  setZhkoDialect('cantonese');
 });
 
 if (translateKojaRecord) {
